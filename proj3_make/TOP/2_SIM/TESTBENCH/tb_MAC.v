@@ -49,6 +49,20 @@ reg  signed [63:0]          ideal;          // non-wrapping accumulator (wrap de
 reg  signed [63:0]          ideal_hi, ideal_lo;
 reg                         prev_sign;
 integer                     cyc, n, h, seed, rst_cnt, k, nen;
+reg  [31:0]     rng;                // xorshift32 state (own PRNG: same stimulus in every simulator)
+reg  [31:0]     r1, r2, r3;
+function [31:0] rnd;            // advances rng and returns the new value
+    input unused;               // Verilog-2001 functions need at least one input
+    reg [31:0] x;
+    begin
+        x = rng;
+        x = x ^ (x << 13);
+        x = x ^ (x >> 17);
+        x = x ^ (x << 5);
+        rng = x;
+        rnd = x;
+    end
+endfunction
 
 task clear_model;
     begin
@@ -103,29 +117,32 @@ task drive_random;
     input allow_clr;
     integer r;
     begin
-        r = $random(seed) & 7;
+        r1 = rnd(1'b0); r = r1 & 7;
+        r1 = rnd(1'b0);
         case (r)
             0: a = {1'b1, {(A_W-1){1'b0}}};         // most negative
             1: a = {1'b0, {(A_W-1){1'b1}}};         // most positive
             2: a = 0;
-            default: a = $random(seed);
+            default: a = r1;
         endcase
-        r = $random(seed) & 7;
+        r1 = rnd(1'b0); r = r1 & 7;
+        r1 = rnd(1'b0);
         case (r)
             0: b = {1'b1, {(A_W-1){1'b0}}};
             1: b = {1'b0, {(A_W-1){1'b1}}};
             2: b = -1;
-            default: b = $random(seed);
+            default: b = r1;
         endcase
-        en  = (($random(seed) & 3) != 0);
-        clr = allow_clr && (($random(seed) & 15) == 0);
+        r1 = rnd(1'b0); r2 = rnd(1'b0);
+        en  = ((r1 & 3) != 0);
+        clr = allow_clr && ((r2 & 15) == 0);
     end
 endtask
 
 initial begin
     clk = 0; rst_n = 1; en = 0; clr = 0; a = 0; b = 0;
     o_done = 0; o_pass = 0; o_fail = 0; o_hash = 32'h1234_5678; o_cov = 0;
-    seed = SEED; rst_cnt = 0; cyc = 0;
+    rng = 32'h2545F491 ^ (SEED * 32'h9E3779B1); if (rng == 32'd0) rng = 32'd1; rst_cnt = 0; cyc = 0;
     ideal_hi = (64'sd1 <<< (ACC_W-1)) - 1;
     ideal_lo = -(64'sd1 <<< (ACC_W-1));
     clear_model;
@@ -156,8 +173,9 @@ initial begin
             if (rst_cnt == 0) rst_n = 1;
         end
         drive_random(1);
-        if (rst_n && (($random(seed) & 127) == 0)) begin
-            #2 rst_n = 0; rst_cnt = 1 + ($random(seed) & 3); o_cov[8] = 1;
+        r1 = rnd(1'b0); r2 = rnd(1'b0);
+        if (rst_n && ((r1 & 127) == 0)) begin
+            #2 rst_n = 0; rst_cnt = 1 + (r2 & 3); o_cov[8] = 1;
             clear_model;
             #1 if (acc !== {ACC_W{1'b0}}) begin o_fail = o_fail + 1; $display("FAIL mac A_W=%0d cyc=%0d acc != 0 after async reset", A_W, cyc); end else o_pass = o_pass + 1;
         end

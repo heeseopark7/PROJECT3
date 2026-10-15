@@ -49,6 +49,20 @@ reg  signed [XLEN-1:0] sa;
 reg  [SHAMT_W-1:0]  sh;
 reg  [63:0]         sh_l, sh_r, sh_a;
 integer i, j, k, seed;
+reg  [31:0]     rng;                // xorshift32 state (own PRNG: same stimulus in every simulator)
+reg  [31:0]     r1, r2, r3;
+function [31:0] rnd;            // advances rng and returns the new value
+    input unused;               // Verilog-2001 functions need at least one input
+    reg [31:0] x;
+    begin
+        x = rng;
+        x = x ^ (x << 13);
+        x = x ^ (x >> 17);
+        x = x ^ (x << 5);
+        rng = x;
+        rnd = x;
+    end
+endfunction
 
 task reference;
     begin
@@ -154,7 +168,7 @@ initial begin
     o_done = 0; o_pass = 0; o_fail = 0; o_hash = 32'h1234_5678;
     o_op_seen = 0; o_add_seen = 0; o_sub_seen = 0; o_sra_seen = 0; o_shamt_seen = 0;
     sh_l = 0; sh_r = 0; sh_a = 0;
-    seed = SEED;
+    rng = 32'h2545F491 ^ (SEED * 32'h9E3779B1); if (rng == 32'd0) rng = 32'd1;
     full = (64'd1 << XLEN) - 64'd1;
     if (XLEN == 32) begin   // note examples first
         lit(32'hFFFFFFFF, 32'h00000001, `ALU_ADD,  1'b1, 1'b0, 1'b1, 1'b0, 32'h00000000);
@@ -182,11 +196,13 @@ initial begin
             for (j = 0; j < 7; j = j + 1)
                 all_ops(corner[i], corner[j]);
         for (k = 0; k < NRAND; k = k + 1)
-            all_ops($random(seed), $random(seed));
+            begin r1 = rnd(1'b0); r2 = rnd(1'b0); all_ops(r1, r2); end
         // every shamt, random upper bits of b, both a signs
         for (k = 0; k < (1 << SHAMT_W); k = k + 1) begin
-            all_ops({1'b1, {(XLEN-1){1'b0}}} | $random(seed), ($random(seed) << SHAMT_W) | k);
-            all_ops({1'b0, {(XLEN-1){1'b1}}} & $random(seed), ($random(seed) << SHAMT_W) | k);
+            r1 = rnd(1'b0); r2 = rnd(1'b0);
+            all_ops({1'b1, {(XLEN-1){1'b0}}} | r1, (r2 << SHAMT_W) | k);
+            r1 = rnd(1'b0); r2 = rnd(1'b0);
+            all_ops({1'b0, {(XLEN-1){1'b1}}} & r1, (r2 << SHAMT_W) | k);
         end
     end
     o_shamt_seen = (sh_l & sh_r & sh_a);
@@ -197,6 +213,8 @@ endmodule
 module tb_alu_core;
 parameter AARCH = 4;
 parameter SARCH = 1;
+parameter NR    = 20000;        // random pairs for XLEN = 16, 32 (each applied to all 16 op codes)
+parameter EXH8  = 1;            // 1: XLEN = 8 exhaustive; 0: corners + random (small 4-state runs)
 
 wire        d8, d16, d32;
 wire [31:0] p8, p16, p32, f8, f16, f32, h8, h16, h32;
@@ -204,9 +222,9 @@ wire [15:0] os8, os16, os32, as8, as16, as32, ss8, ss16, ss32;
 wire [3:0]  sra8, sra16, sra32;
 wire [63:0] sh8, sh16, sh32;
 
-alu_core_chk #(.XLEN(8 ), .AARCH(AARCH), .SARCH(SARCH), .EXH(1))               u8  (d8 , p8 , f8 , h8 , os8 , as8 , ss8 , sra8 , sh8 );
-alu_core_chk #(.XLEN(16), .AARCH(AARCH), .SARCH(SARCH), .EXH(0), .SEED(2))     u16 (d16, p16, f16, h16, os16, as16, ss16, sra16, sh16);
-alu_core_chk #(.XLEN(32), .AARCH(AARCH), .SARCH(SARCH), .EXH(0), .SEED(3))     u32 (d32, p32, f32, h32, os32, as32, ss32, sra32, sh32);
+alu_core_chk #(.XLEN(8 ), .AARCH(AARCH), .SARCH(SARCH), .EXH(EXH8), .NRAND(NR))               u8  (d8 , p8 , f8 , h8 , os8 , as8 , ss8 , sra8 , sh8 );
+alu_core_chk #(.XLEN(16), .AARCH(AARCH), .SARCH(SARCH), .EXH(0), .NRAND(NR), .SEED(2))     u16 (d16, p16, f16, h16, os16, as16, ss16, sra16, sh16);
+alu_core_chk #(.XLEN(32), .AARCH(AARCH), .SARCH(SARCH), .EXH(0), .NRAND(NR), .SEED(3))     u32 (d32, p32, f32, h32, os32, as32, ss32, sra32, sh32);
 
 // Reachable {z,n,c,v} combos, index = z*8 + n*4 + c*2 + v (derived by hand, see docs/module_notes/alu_core.md)
 //   ADD: 9 combos -> bits 0,2,3,4,5,6,8,10,11      SUB: 7 combos -> bits 0,2,3,4,5,6,10

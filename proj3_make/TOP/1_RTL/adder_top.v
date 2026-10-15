@@ -4,8 +4,8 @@
 //   Purpose : Single adder entry point. Every addition in the design goes through here.
 //             The architecture is chosen with ADDER_ARCH (same ports for every choice).
 //   Structure: generate-select of one adder module.
-//                0 RCA (adder_rca)   1 CLA (reserved)   2 Kogge-Stone (adder_ks)
-//                3 Brent-Kung (reserved)   4 BEH (adder_beh, default)
+//                0 RCA (adder_rca)   1 CLA (adder_cla)   2 Kogge-Stone (adder_ks)
+//                3 Brent-Kung (adder_bk)   4 BEH (adder_beh, default)
 //   Latency : 0 (combinational)
 //   Note    : An unimplemented ADDER_ARCH is NOT replaced by another adder.
 //             It instantiates a module that does not exist, so compile/elaboration fails.
@@ -38,9 +38,29 @@ generate
             .o_cout (o_cout )
         );
     end
+    else if (ADDER_ARCH == 1)
+    begin : g_cla
+        adder_cla #(.W(W)) u_adder (
+            .i_a    (i_a    ),
+            .i_b    (i_b    ),
+            .i_cin  (i_cin  ),
+            .o_sum  (o_sum  ),
+            .o_cout (o_cout )
+        );
+    end
     else if (ADDER_ARCH == 2)
     begin : g_ks
         adder_ks #(.W(W)) u_adder (
+            .i_a    (i_a    ),
+            .i_b    (i_b    ),
+            .i_cin  (i_cin  ),
+            .o_sum  (o_sum  ),
+            .o_cout (o_cout )
+        );
+    end
+    else if (ADDER_ARCH == 3)
+    begin : g_bk
+        adder_bk #(.W(W)) u_adder (
             .i_a    (i_a    ),
             .i_b    (i_b    ),
             .i_cin  (i_cin  ),

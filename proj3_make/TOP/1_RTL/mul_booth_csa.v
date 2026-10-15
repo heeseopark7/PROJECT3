@@ -21,6 +21,7 @@
 //                 sum row and a carry row (3:2 compressors on whole rows, carry row shifted left by one); leftover
 //                 rows pass through. m + 1 = 3, 5, 9 rows (A_W = 4, 8, 16) take 1, 3, 4 levels.
 //              The last two rows are (o_s, o_c).
+//              All rows are slices of one packed vector (no hierarchical references).
 //   Latency : 0 (combinational). Depth: Booth select + about 1/3/4 compressor levels.
 //   Note    : No '+' '-' '*' on data here; the constant K is computed at elaboration only.
 // -----------------------------------------------------------------------------
@@ -68,125 +69,136 @@ function integer f_levels;
     end
 endfunction
 
+// Index of the first row of level fl in the packed row vector (rows of earlier levels come first).
+function integer f_off;
+    input integer fl;
+    integer fi, fo;
+    begin
+        fo = 0;
+        for (fi = 0; fi < fl; fi = fi + 1)
+            fo = fo + f_height(fi);
+        f_off = fo;
+    end
+endfunction
+
 localparam  LV      =   f_levels(R0)    ;   // compression levels
 
 // Sign-extension constant K = -(2**n) * ((2**n - 1) / 3)  mod 2**(2n)   (elaboration-time arithmetic)
 localparam  [31:0]      K_FULL  =   -((2**A_W) * ((2**A_W - 1) / 3))    ;
 localparam  [P_W-1:0]   K_BOOTH =   K_FULL[P_W-1:0]                     ;
 
-// ---- row array: g_lvl[l].g_out[r].w_o is row r after l compression levels (level 0 = Booth rows) ----
+// ---- row array: all rows of all levels live in ONE packed vector w_all ----
+// Row r of level l is the slice w_all[(f_off(l)+r)*P_W +: P_W]. Level 0 = Booth rows (+ constant row).
+// split_var: lint hint only (tells the lint tool the rows are separate signals, not a loop).
+// Bits of a row that only feed carry rows' dropped top bit are never read; synthesis removes them.
+localparam  TOT     =   f_off(LV + 1)   ;   // total rows over all levels
+/* verilator lint_off UNUSEDSIGNAL */
+wire    [TOT*P_W-1:0]   w_all       /* verilator split_var */ ;
+/* verilator lint_on UNUSEDSIGNAL */
+
 genvar                  gl, gr, gp      ;
 generate
-    for     (gl = 0 ; gl <= LV ; gl = gl + 1)
-    begin : g_lvl
-        localparam  HOUT    =   f_height(gl)    ;   // rows leaving this level
-        for     (gr = 0 ; gr < HOUT ; gr = gr + 1)
-        begin : g_out
-            wire    [P_W-1:0]   w_o     ;
+    // ---- level 0: Booth partial product rows k = 0 .. M-1 and the constant row ----
+    for     (gr = 0 ; gr < R0 ; gr = gr + 1)
+    begin : g_src
+        if (gr < M)
+        begin : g_booth
+            localparam  K   =   gr  ;
+            wire                w_hi    ;       // b[2k+1]
+            wire                w_mid   ;       // b[2k]
+            wire                w_lo    ;       // b[2k-1]
+            wire                w_one   ;
+            wire                w_two   ;
+            wire                w_neg   ;
+            wire    [A_W:0]     w_base  ;       // |d| * a, n+1 bits (before inversion)
+            wire    [A_W:0]     w_inner ;       // {~sign, low n bits} after the neg XOR
 
-            if (gl == 0)
-            begin : g_src
-                if (gr < M)
-                begin : g_booth
-                    // ---- Booth row k = gr ----
-                    localparam  K   =   gr  ;
-                    wire                w_hi    ;       // b[2k+1]
-                    wire                w_mid   ;       // b[2k]
-                    wire                w_lo    ;       // b[2k-1]
-                    wire                w_one   ;
-                    wire                w_two   ;
-                    wire                w_neg   ;
-                    wire    [A_W:0]     w_base  ;       // |d| * a, n+1 bits (before inversion)
-                    wire    [A_W:0]     w_inner ;       // {~sign, low n bits} after the neg XOR
+            assign  w_hi    =   i_b[2*K+1]  ;
+            assign  w_mid   =   i_b[2*K]    ;
+            if (K == 0)
+            begin : g_lo0
+                assign  w_lo    =   1'b0        ;
+            end
+            else
+            begin : g_lon
+                assign  w_lo    =   i_b[2*K-1]  ;
+            end
 
-                    assign  w_hi    =   i_b[2*K+1]  ;
-                    assign  w_mid   =   i_b[2*K]    ;
-                    if (K == 0)
-                    begin : g_lo0
-                        assign  w_lo    =   1'b0        ;
-                    end
-                    else
-                    begin : g_lon
-                        assign  w_lo    =   i_b[2*K-1]  ;
-                    end
+            assign  w_one   =   w_mid ^ w_lo                                                ;
+            assign  w_two   =   (w_hi & ~w_mid & ~w_lo) | (~w_hi & w_mid & w_lo)            ;
+            assign  w_neg   =   w_hi                                                        ;
 
-                    assign  w_one   =   w_mid ^ w_lo                                                ;
-                    assign  w_two   =   (w_hi & ~w_mid & ~w_lo) | (~w_hi & w_mid & w_lo)            ;
-                    assign  w_neg   =   w_hi                                                        ;
+            // a sign-extended to n+1 bits, and a shifted left by one (2a), both n+1 bits
+            assign  w_base  =   ({(A_W+1){w_one}} & {i_a[A_W-1], i_a})
+                              | ({(A_W+1){w_two}} & {i_a, 1'b0})                            ;
+            assign  w_inner =   {~(w_base[A_W] ^ w_neg), w_base[A_W-1:0] ^ {A_W{w_neg}}}    ;
 
-                    // a sign-extended to n+1 bits, and a shifted left by one (2a), both n+1 bits
-                    assign  w_base  =   ({(A_W+1){w_one}} & {i_a[A_W-1], i_a})
-                                      | ({(A_W+1){w_two}} & {i_a, 1'b0})                            ;
-                    assign  w_inner =   {~(w_base[A_W] ^ w_neg), w_base[A_W-1:0] ^ {A_W{w_neg}}}    ;
-
-                    // place at weight 2k
-                    if (K == 0)
-                    begin : g_w0
-                        assign  w_o =   {{(P_W-A_W-1){1'b0}}, w_inner}                      ;
-                    end
-                    else
-                    begin : g_wn
-                        assign  w_o =   {{(P_W-A_W-1-2*K){1'b0}}, w_inner, {(2*K){1'b0}}}   ;
-                    end
+            // place at weight 2k
+            if (K == 0)
+            begin : g_w0
+                assign  w_all[gr*P_W +: P_W]    =   {{(P_W-A_W-1){1'b0}}, w_inner}                      ;
+            end
+            else
+            begin : g_wn
+                assign  w_all[gr*P_W +: P_W]    =   {{(P_W-A_W-1-2*K){1'b0}}, w_inner, {(2*K){1'b0}}}   ;
+            end
+        end
+        else
+        begin : g_const
+            // ---- constant row: the neg_k bits at weights 0, 2, .., n-2 and the constant K (zero below bit n) ----
+            for     (gp = 0 ; gp < P_W ; gp = gp + 1)
+            begin : g_bit
+                if (gp < A_W && (gp % 2) == 0)
+                begin : g_neg
+                    assign  w_all[gr*P_W + gp]  =   i_b[gp+1]       ;   // neg_k = b[2k+1], weight 2k = gp
                 end
                 else
-                begin : g_const
-                    // ---- constant row: the neg_k bits at weights 0, 2, .., n-2 and the constant K (zero below bit n) ----
-                    for     (gp = 0 ; gp < P_W ; gp = gp + 1)
-                    begin : g_bit
-                        if (gp < A_W && (gp % 2) == 0)
-                        begin : g_neg
-                            assign  w_o[gp] =   i_b[gp+1]       ;   // neg_k = b[2k+1], weight 2k = gp
-                        end
-                        else
-                        begin : g_k
-                            assign  w_o[gp] =   K_BOOTH[gp]     ;
-                        end
-                    end
+                begin : g_k
+                    assign  w_all[gr*P_W + gp]  =   K_BOOTH[gp]     ;
+                end
+            end
+        end
+    end
+
+    // ---- Wallace levels 1 .. LV: groups of three input rows -> (sum row, carry row); leftover rows pass ----
+    for     (gl = 1 ; gl <= LV ; gl = gl + 1)
+    begin : g_lvl
+        localparam  HIN     =   f_height(gl-1)  ;   // rows entering this level
+        localparam  HOUT    =   f_height(gl)    ;   // rows leaving this level
+        localparam  G       =   HIN/3           ;   // number of 3:2 groups
+        localparam  OIN     =   f_off(gl-1)     ;   // first input row
+        localparam  OOUT    =   f_off(gl)       ;   // first output row
+        for     (gr = 0 ; gr < HOUT ; gr = gr + 1)
+        begin : g_out
+            if (gr < 2*G)
+            begin : g_c32
+                localparam  IA  =   OIN + 3*(gr/2)  ;   // first input row of this group
+                if ((gr % 2) == 0)
+                begin : g_sum
+                    assign  w_all[(OOUT+gr)*P_W +: P_W] =   w_all[IA*P_W +: P_W]
+                                                          ^ w_all[(IA+1)*P_W +: P_W]
+                                                          ^ w_all[(IA+2)*P_W +: P_W]    ;
+                end
+                else
+                begin : g_carry
+                    // majority, shifted left by one. The carry out of the top bit is dropped (mod 2**P_W),
+                    // so only bits P_W-2..0 of the inputs are read.
+                    assign  w_all[(OOUT+gr)*P_W +: P_W] =   {(  (w_all[IA*P_W +: P_W-1]       & w_all[(IA+1)*P_W +: P_W-1])
+                                                              | (w_all[IA*P_W +: P_W-1]       & w_all[(IA+2)*P_W +: P_W-1])
+                                                              | (w_all[(IA+1)*P_W +: P_W-1]   & w_all[(IA+2)*P_W +: P_W-1])), 1'b0}   ;
                 end
             end
             else
-            begin : g_cmp
-                // ---- Wallace level: groups of three input rows -> (sum row, carry row); leftover rows pass ----
-                localparam  HIN =   f_height(gl-1)  ;   // rows entering this level
-                localparam  G   =   HIN/3           ;   // number of 3:2 groups
-                if (gr < 2*G)
-                begin : g_c32
-                    localparam  IA  =   3*(gr/2)    ;   // first input row of this group
-                    if ((gr % 2) == 0)
-                    begin : g_sum
-                        wire    [P_W-1:0]   w_x     ;
-                        wire    [P_W-1:0]   w_y     ;
-                        wire    [P_W-1:0]   w_z     ;
-                        assign  w_x =   g_lvl[gl-1].g_out[IA].w_o   ;
-                        assign  w_y =   g_lvl[gl-1].g_out[IA+1].w_o ;
-                        assign  w_z =   g_lvl[gl-1].g_out[IA+2].w_o ;
-                        assign  w_o =   w_x ^ w_y ^ w_z             ;
-                    end
-                    else
-                    begin : g_carry
-                        // majority, shifted left by one. The carry out of the top bit is dropped (mod 2**P_W),
-                        // so only bits P_W-2..0 of the inputs are read.
-                        wire    [P_W-2:0]   w_x     ;
-                        wire    [P_W-2:0]   w_y     ;
-                        wire    [P_W-2:0]   w_z     ;
-                        assign  w_x =   g_lvl[gl-1].g_out[IA].w_o[P_W-2:0]      ;
-                        assign  w_y =   g_lvl[gl-1].g_out[IA+1].w_o[P_W-2:0]    ;
-                        assign  w_z =   g_lvl[gl-1].g_out[IA+2].w_o[P_W-2:0]    ;
-                        assign  w_o =   {((w_x & w_y) | (w_x & w_z) | (w_y & w_z)), 1'b0}   ;
-                    end
-                end
-                else
-                begin : g_pass
-                    assign  w_o =   g_lvl[gl-1].g_out[3*G + (gr - 2*G)].w_o ;
-                end
+            begin : g_pass
+                assign  w_all[(OOUT+gr)*P_W +: P_W] =   w_all[(OIN + 3*G + (gr - 2*G))*P_W +: P_W] ;
             end
         end
     end
 endgenerate
 
-assign  o_s     =   g_lvl[LV].g_out[0].w_o  ;
-assign  o_c     =   g_lvl[LV].g_out[1].w_o  ;
+localparam  FIN     =   f_off(LV)       ;   // first row of the last level: its two rows are the result
+assign  o_s     =   w_all[FIN*P_W +: P_W]               ;
+assign  o_c     =   w_all[(FIN+1)*P_W +: P_W]           ;
 
 endmodule
 `default_nettype wire

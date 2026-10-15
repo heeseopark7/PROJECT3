@@ -87,6 +87,20 @@ reg  [3:0]          s2flag;         // {z, n, c, v}
 reg  [3:0]          s2op;           // op that produced the stage-2 value (op coverage)
 reg                 prev_vin, prev_s2v;
 integer             cyc, rst_cnt, seed, k;
+reg  [31:0]     rng;                // xorshift32 state (own PRNG: same stimulus in every simulator)
+reg  [31:0]     r1, r2, r3;
+function [31:0] rnd;            // advances rng and returns the new value
+    input unused;               // Verilog-2001 functions need at least one input
+    reg [31:0] x;
+    begin
+        x = rng;
+        x = x ^ (x << 13);
+        x = x ^ (x >> 17);
+        x = x ^ (x << 5);
+        rng = x;
+        rnd = x;
+    end
+endfunction
 
 task clear_model;
     begin
@@ -131,10 +145,10 @@ endtask
 
 task drive_random;
     begin
-        a  = $random(seed);
-        b  = $random(seed);
-        op = $random(seed);
-        vin = (($random(seed) & 3) != 0);       // 75% valid -> gaps and bursts
+        r1 = rnd(1'b0); a  = r1;
+        r1 = rnd(1'b0); b  = r1;
+        r1 = rnd(1'b0); op = r1[3:0];
+        r1 = rnd(1'b0); vin = ((r1 & 3) != 0);  // 75% valid -> gaps and bursts
         if (prev_vin && !vin) o_gaps = o_gaps + 1;
         prev_vin = vin;
     end
@@ -146,7 +160,7 @@ initial begin
     o_gaps = 0; o_b2b = 0; o_resets = 0; o_flush = 0; o_lat_ok = 0;
     s1v = 0; s2v = 0; s1a = 0; s1b = 0; s1op = 0; s2res = 0; s2flag = 0; s2op = 0;
     prev_vin = 0; prev_s2v = 0; rst_cnt = 0; cyc = 0;
-    seed = SEED;
+    rng = 32'h2545F491 ^ (SEED * 32'h9E3779B1); if (rng == 32'd0) rng = 32'd1;
 
     // ---- 1. reset with valid input held high ------------------------------
     #1 rst_n = 0; vin = 1; a = 1; b = 2; op = `ALU_ADD;
@@ -180,8 +194,9 @@ initial begin
             if (rst_cnt == 0) rst_n = 1;                        // release at the falling edge
         end
         drive_random;
-        if (rst_n && (($random(seed) & 255) == 0)) begin       // async assert between clock edges
-            #2 rst_n = 0; rst_cnt = 1 + ($random(seed) & 3); o_resets = o_resets + 1;
+        r1 = rnd(1'b0); r2 = rnd(1'b0);
+        if (rst_n && ((r1 & 255) == 0)) begin                   // async assert between clock edges
+            #2 rst_n = 0; rst_cnt = 1 + (r2 & 3); o_resets = o_resets + 1;
             clear_model;
             #1 if (vout !== 1'b0) begin o_fail = o_fail + 1; $display("FAIL alu_top XLEN=%0d cyc=%0d o_valid != 0 after async reset", XLEN, cyc); end else o_pass = o_pass + 1;
         end
@@ -196,15 +211,16 @@ endmodule
 module tb_ALU;
 parameter AARCH = 4;
 parameter SARCH = 1;
+parameter NCYC  = 20000;        // random-stream cycles per width
 
 wire        d8, d16, d32, l8, l16, l32;
 wire [31:0] p8, p16, p32, f8, f16, f32, h8, h16, h32;
 wire [15:0] os8, os16, os32;
 wire [31:0] g8, g16, g32, b8, b16, b32, r8, r16, r32, x8, x16, x32;
 
-alu_top_chk #(.XLEN(8 ), .AARCH(AARCH), .SARCH(SARCH), .SEED(1)) u8  (d8 , p8 , f8 , h8 , os8 , g8 , b8 , r8 , x8 , l8 );
-alu_top_chk #(.XLEN(16), .AARCH(AARCH), .SARCH(SARCH), .SEED(2)) u16 (d16, p16, f16, h16, os16, g16, b16, r16, x16, l16);
-alu_top_chk #(.XLEN(32), .AARCH(AARCH), .SARCH(SARCH), .SEED(3)) u32 (d32, p32, f32, h32, os32, g32, b32, r32, x32, l32);
+alu_top_chk #(.XLEN(8 ), .AARCH(AARCH), .SARCH(SARCH), .NCYC(NCYC), .SEED(1)) u8  (d8 , p8 , f8 , h8 , os8 , g8 , b8 , r8 , x8 , l8 );
+alu_top_chk #(.XLEN(16), .AARCH(AARCH), .SARCH(SARCH), .NCYC(NCYC), .SEED(2)) u16 (d16, p16, f16, h16, os16, g16, b16, r16, x16, l16);
+alu_top_chk #(.XLEN(32), .AARCH(AARCH), .SARCH(SARCH), .NCYC(NCYC), .SEED(3)) u32 (d32, p32, f32, h32, os32, g32, b32, r32, x32, l32);
 
 wire [31:0] pass = p8 + p16 + p32;
 wire [31:0] fail = f8 + f16 + f32;

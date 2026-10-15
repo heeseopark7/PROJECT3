@@ -33,6 +33,20 @@ wire            cout;
 reg  [W:0]      exp;
 reg  [63:0]     hv;             // zero-extended {cout, sum} for the hash
 integer         i, j, k, L, q, seed, run, best;
+reg  [31:0]     rng;                // xorshift32 state (own PRNG: same stimulus in every simulator)
+reg  [31:0]     r1, r2, r3;
+function [31:0] rnd;            // advances rng and returns the new value
+    input unused;               // Verilog-2001 functions need at least one input
+    reg [31:0] x;
+    begin
+        x = rng;
+        x = x ^ (x << 13);
+        x = x ^ (x >> 17);
+        x = x ^ (x << 5);
+        rng = x;
+        rnd = x;
+    end
+endfunction
 reg             c;
 reg  [W-1:0]    va, vb;
 
@@ -92,7 +106,7 @@ reg [W-1:0] corner [0:5];
 
 initial begin
     o_done = 0; o_pass = 0; o_fail = 0; o_hash = 32'h1234_5678; o_cov = 0; o_len = 0;
-    seed = SEED;
+    rng = 32'h2545F491 ^ (SEED * 32'h9E3779B1); if (rng == 32'd0) rng = 32'd1;
     corner[0] = 0;
     corner[1] = {W{1'b1}};
     corner[2] = {1'b1, {(W-1){1'b0}}};
@@ -128,33 +142,36 @@ initial begin
                 chain(k, L, {W{1'b0}});
                 chain(k, L, {W{1'b1}});
                 chain(k, L, {(W/2){2'b01}});
-                chain(k, L, $random(seed));
+                r1 = rnd(1'b0); r2 = rnd(1'b0); chain(k, L, {r2, r1});
             end
         // chains that start at carry-in
         for (L = 0; L <= W; L = L + 1) begin
             chain(-1, L, {W{1'b0}});
-            chain(-1, L, $random(seed));
+            r1 = rnd(1'b0); r2 = rnd(1'b0); chain(-1, L, {r2, r1});
         end
         // V3: random
         for (k = 0; k < NRAND; k = k + 1)
-            check($random(seed), $random(seed), $random(seed));
+            begin r1 = rnd(1'b0); r2 = rnd(1'b0); r3 = rnd(1'b0); check({r2, r1}, {r3, r2 ^ r1}, r3[7]); end
     end
     o_done = 1;
 end
 endmodule
 
 module tb_adder;
-parameter ARCH = 4;
+parameter ARCH   = 4;
+parameter NR_BIG = 1000000;     // random vectors for W = 32 (V3: 1,000,000)
+parameter NR_MID = 200000;      // random vectors for W = 16, 24, 40
+parameter EXH8   = 1;           // 1: W = 8 exhaustive (V1); 0: directed + random (small 4-state runs)
 wire        d8, d16, d24, d32, d40;
 wire [31:0] p8, p16, p24, p32, p40, f8, f16, f24, f32, f40, h8, h16, h24, h32, h40;
 wire [3:0]  c8, c16, c24, c32, c40;
 wire [63:0] l8, l16, l24, l32, l40;
 
-adder_chk #(.W(8 ), .ARCH(ARCH), .EXH(1))                                u8  (d8 , p8 , f8 , h8 , c8 , l8 );
-adder_chk #(.W(16), .ARCH(ARCH), .EXH(0), .NRAND(200000),  .SEED(2))     u16 (d16, p16, f16, h16, c16, l16);
-adder_chk #(.W(24), .ARCH(ARCH), .EXH(0), .NRAND(200000),  .SEED(4))     u24 (d24, p24, f24, h24, c24, l24);
-adder_chk #(.W(32), .ARCH(ARCH), .EXH(0), .NRAND(1000000), .SEED(3))     u32 (d32, p32, f32, h32, c32, l32);
-adder_chk #(.W(40), .ARCH(ARCH), .EXH(0), .NRAND(200000),  .SEED(5))     u40 (d40, p40, f40, h40, c40, l40);
+adder_chk #(.W(8 ), .ARCH(ARCH), .EXH(EXH8), .NRAND(NR_MID))                                u8  (d8 , p8 , f8 , h8 , c8 , l8 );
+adder_chk #(.W(16), .ARCH(ARCH), .EXH(0), .NRAND(NR_MID),  .SEED(2))     u16 (d16, p16, f16, h16, c16, l16);
+adder_chk #(.W(24), .ARCH(ARCH), .EXH(0), .NRAND(NR_MID),  .SEED(4))     u24 (d24, p24, f24, h24, c24, l24);
+adder_chk #(.W(32), .ARCH(ARCH), .EXH(0), .NRAND(NR_BIG), .SEED(3))     u32 (d32, p32, f32, h32, c32, l32);
+adder_chk #(.W(40), .ARCH(ARCH), .EXH(0), .NRAND(NR_MID),  .SEED(5))     u40 (d40, p40, f40, h40, c40, l40);
 
 wire [31:0] pass = p8 + p16 + p24 + p32 + p40;
 wire [31:0] fail = f8 + f16 + f24 + f32 + f40;

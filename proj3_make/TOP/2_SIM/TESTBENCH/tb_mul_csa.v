@@ -24,6 +24,20 @@ reg  signed [A_W-1:0]       a, b;
 wire        [2*A_W-1:0]     s, c;
 reg         [2*A_W-1:0]     exp, tot;
 integer i, j, k, seed;
+reg  [31:0]     rng;                // xorshift32 state (own PRNG: same stimulus in every simulator)
+reg  [31:0]     r1, r2, r3;
+function [31:0] rnd;            // advances rng and returns the new value
+    input unused;               // Verilog-2001 functions need at least one input
+    reg [31:0] x;
+    begin
+        x = rng;
+        x = x ^ (x << 13);
+        x = x ^ (x >> 17);
+        x = x ^ (x << 5);
+        rng = x;
+        rnd = x;
+    end
+endfunction
 
 mul_csa_top #(.A_W(A_W), .MULT_ARCH(ARCH)) dut (.i_a(a), .i_b(b), .o_s(s), .o_c(c));
 
@@ -52,7 +66,7 @@ reg signed [A_W-1:0] corner [0:6];
 
 initial begin
     o_done = 0; o_pass = 0; o_fail = 0; o_cov = 0;
-    seed = SEED;
+    rng = 32'h2545F491 ^ (SEED * 32'h9E3779B1); if (rng == 32'd0) rng = 32'd1;
     if (EXH != 0) begin
         for (i = -(1 << (A_W-1)); i < (1 << (A_W-1)); i = i + 1)
             for (j = -(1 << (A_W-1)); j < (1 << (A_W-1)); j = j + 1)
@@ -69,7 +83,7 @@ initial begin
             for (j = 0; j < 7; j = j + 1)
                 check(corner[i], corner[j]);
         for (k = 0; k < NRAND; k = k + 1)
-            check($random(seed), $random(seed));
+            begin r1 = rnd(1'b0); r2 = rnd(1'b0); check(r1, r2); end
     end
     o_done = 1;
 end
@@ -77,13 +91,14 @@ endmodule
 
 module tb_mul_csa;
 parameter ARCH  = 1;
+parameter EXH8  = 1;            // 1: A_W = 8 exhaustive (65,536 pairs); 0: corners + random (small 4-state runs)
 parameter NR16  = 200000;
 wire        d4, d8, d16;
 wire [31:0] p4, p8, p16, f4, f8, f16;
 wire [4:0]  c4, c8, c16;
 
 csa_chk #(.A_W(4 ), .ARCH(ARCH), .EXH(1))                          u4  (d4 , p4 , f4 , c4 );
-csa_chk #(.A_W(8 ), .ARCH(ARCH), .EXH(1))                          u8  (d8 , p8 , f8 , c8 );
+csa_chk #(.A_W(8 ), .ARCH(ARCH), .EXH(EXH8), .NRAND(NR16))                          u8  (d8 , p8 , f8 , c8 );
 csa_chk #(.A_W(16), .ARCH(ARCH), .EXH(0), .NRAND(NR16), .SEED(2))  u16 (d16, p16, f16, c16);
 
 wire [31:0] pass = p4 + p8 + p16;
