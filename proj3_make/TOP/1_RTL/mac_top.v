@@ -75,7 +75,7 @@ generate
         reg             [ACC_W-1:0] r_acc_d     ;
         reg             [ACC_W-1:0] acc_q       ;
 
-        mul_top #(.A_W(A_W), .MULT_ARCH(MULT_ARCH)) u_mul (
+        mul_top #(.A_W(A_W), .MULT_ARCH(MULT_ARCH), .ADDER_ARCH(ADDER_ARCH)) u_mul (
             .i_a    (a_q    ),
             .i_b    (b_q    ),
             .o_p    (w_p    )

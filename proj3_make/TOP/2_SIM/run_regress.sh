@@ -11,6 +11,7 @@ rc=0
 
 ADDER_ARCHS="4 0 2"     # implemented ADDER_ARCH codes   (4 BEH, 0 RCA, 2 Kogge-Stone)
 SHIFTER_ARCHS="1 0"     # implemented SHIFTER_ARCH codes (1 barrel, 0 loop)
+MULT_ARCHS="0 1"        # implemented MULT_ARCH codes    (0 BEH, 1 Array)
 
 JOBS=${JOBS:-4}         # simulations run in parallel
 ORDER=""                # job names in launch order (for printing)
@@ -53,10 +54,14 @@ ADD="$RTL/adder_top.v $RTL/adder_beh.v $RTL/adder_rca.v $RTL/adder_ks.v"
 SHF="$RTL/alu_shifter.v $RTL/shr_barrel.v $RTL/shr_loop.v"
 CORE="$RTL/alu_core.v $ADD $SHF"
 TOP="$RTL/alu_top.v $CORE"
-MUL="$RTL/mul_top.v $RTL/mul_beh.v"
-MAC="$RTL/mac_top.v $MUL $ADD"
+MUL="$RTL/mul_top.v $RTL/mul_beh.v $RTL/mul_csa_top.v $RTL/mul_array_csa.v $ADD"
+MAC="$RTL/mac_top.v $MUL"
 
 echo "=== SIM (up to $JOBS in parallel) ==="
+# multiplier: 1,000,000 random pairs at A_W=16 (M2) for the default adder; launched first because they are the slowest
+for m in $MULT_ARCHS; do
+    run_sim mulfull_m$m TESTBENCH/tb_mul.v "-Ptb_mul.ARCH=$m -Ptb_mul.AARCH=4 -Ptb_mul.NR16=1000000" $MUL
+done
 for aa in $ADDER_ARCHS; do run_sim adder_a$aa TESTBENCH/tb_adder.v "-Ptb_adder.ARCH=$aa" $ADD; done
 for sa in $SHIFTER_ARCHS; do run_sim shifter_s$sa TESTBENCH/tb_shifter.v "-Ptb_shifter.ARCH=$sa" $SHF; done
 for aa in $ADDER_ARCHS; do for sa in $SHIFTER_ARCHS; do
@@ -65,16 +70,28 @@ done; done
 for aa in $ADDER_ARCHS; do for sa in $SHIFTER_ARCHS; do
     run_sim top_a${aa}_s$sa TESTBENCH/tb_ALU.v "-Ptb_ALU.AARCH=$aa -Ptb_ALU.SARCH=$sa" $TOP
 done; done
-run_sim mul_m0 TESTBENCH/tb_mul.v "-Ptb_mul.ARCH=0" $MUL
-for aa in $ADDER_ARCHS; do
-    run_sim mac_m0_a${aa}_st1 TESTBENCH/tb_MAC.v "-Ptb_MAC.AARCH=$aa" $MAC
+# carry-save multipliers directly (o_s + o_c == a*b), then every (MULT_ARCH x ADDER_ARCH) with fewer random pairs
+for m in $MULT_ARCHS; do
+    [ "$m" = "0" ] && continue          # BEH has no carry-save form
+    run_sim mulcsa_m$m TESTBENCH/tb_mul_csa.v "-Ptb_mul_csa.ARCH=$m -Ptb_mul_csa.NR16=200000" $MUL
 done
+for m in $MULT_ARCHS; do
+    if [ "$m" = "0" ]; then run_sim mulx_m0_a4 TESTBENCH/tb_mul.v "-Ptb_mul.ARCH=0 -Ptb_mul.AARCH=4 -Ptb_mul.NR16=100000" $MUL; continue; fi
+    for aa in $ADDER_ARCHS; do
+        run_sim mulx_m${m}_a$aa TESTBENCH/tb_mul.v "-Ptb_mul.ARCH=$m -Ptb_mul.AARCH=$aa -Ptb_mul.NR16=100000" $MUL
+    done
+done
+for m in $MULT_ARCHS; do for aa in $ADDER_ARCHS; do
+    run_sim mac_m${m}_a${aa}_st1 TESTBENCH/tb_MAC.v "-Ptb_MAC.MARCH=$m -Ptb_MAC.AARCH=$aa" $MAC
+done; done
 collect_sims
 
 same_hash adder  adder_
 same_hash shifter shifter_
 same_hash alu_core core_
 same_hash alu_top top_
+same_hash mul_1M mulfull_
+same_hash mul_100k mulx_
 same_hash mac_top mac_
 
 echo "=== LINT (verilator --lint-only -Wall) ==="
@@ -88,8 +105,15 @@ for aa in $ADDER_ARCHS; do for sa in $SHIFTER_ARCHS; do
     verilator --lint-only -Wall -I$RTL --top-module alu_core -GADDER_ARCH=$aa -GSHIFTER_ARCH=$sa $CORE && echo "alu_core A=$aa S=$sa: clean" || rc=1
     verilator --lint-only -Wall -I$RTL --top-module alu_top  -GADDER_ARCH=$aa -GSHIFTER_ARCH=$sa $TOP  && echo "alu_top  A=$aa S=$sa: clean" || rc=1
 done; done
-verilator --lint-only -Wall --top-module mul_top $MUL && echo "mul_top: clean" || rc=1
-verilator --lint-only -Wall --top-module mac_top $MAC && echo "mac_top: clean" || rc=1
+for m in $MULT_ARCHS; do for w in 4 8 16; do
+    verilator --lint-only -Wall --top-module mul_top -GMULT_ARCH=$m -GA_W=$w $MUL && echo "mul_top MULT_ARCH=$m A_W=$w: clean" || rc=1
+done; done
+for m in $MULT_ARCHS; do [ "$m" = "0" ] && continue; for w in 4 8 16; do
+    verilator --lint-only -Wall --top-module mul_csa_top -GMULT_ARCH=$m -GA_W=$w $MUL && echo "mul_csa_top MULT_ARCH=$m A_W=$w: clean" || rc=1
+done; done
+for m in $MULT_ARCHS; do for aa in $ADDER_ARCHS; do
+    verilator --lint-only -Wall --top-module mac_top -GMULT_ARCH=$m -GADDER_ARCH=$aa $MAC && echo "mac_top M=$m A=$aa: clean" || rc=1
+done; done
 
 echo "=== YOSYS read_verilog ==="
 y() { yosys -q -p "read_verilog -I$RTL $1; hierarchy -check -top $2 $3" || rc=1; }
@@ -99,8 +123,8 @@ for aa in $ADDER_ARCHS; do for sa in $SHIFTER_ARCHS; do
     y "$CORE" alu_core "-chparam ADDER_ARCH $aa -chparam SHIFTER_ARCH $sa"
     y "$TOP"  alu_top  "-chparam ADDER_ARCH $aa -chparam SHIFTER_ARCH $sa"
 done; done
-y "$MUL" mul_top ""
-y "$MAC" mac_top ""
+for m in $MULT_ARCHS; do for w in 4 8 16; do y "$MUL" mul_top "-chparam MULT_ARCH $m -chparam A_W $w"; done; done
+for m in $MULT_ARCHS; do for aa in $ADDER_ARCHS; do y "$MAC" mac_top "-chparam MULT_ARCH $m -chparam ADDER_ARCH $aa"; done; done
 [ $rc -eq 0 ] && echo "yosys: ok"
 
 echo "=== NEGATIVE: unimplemented ARCH must fail elaboration ==="
@@ -111,7 +135,10 @@ neg() {  # label top param-flag rtl-files...
 neg "adder ARCH=1"    adder_top   -Padder_top.ADDER_ARCH=1        $ADD
 neg "adder ARCH=3"    adder_top   -Padder_top.ADDER_ARCH=3        $ADD
 neg "shifter ARCH=2"  alu_shifter -Palu_shifter.SHIFTER_ARCH=2    $SHF
-neg "mul ARCH=1"      mul_top     -Pmul_top.MULT_ARCH=1           $MUL
+neg "mul ARCH=2"      mul_top     -Pmul_top.MULT_ARCH=2           $MUL
+neg "mul ARCH=3"      mul_top     -Pmul_top.MULT_ARCH=3           $MUL
+neg "mul_csa ARCH=0"  mul_csa_top -Pmul_csa_top.MULT_ARCH=0       $MUL
+neg "mul A_W=6"       mul_top     -Pmul_top.A_W=6                 $MUL
 neg "mac STAGES=2"    mac_top     -Pmac_top.MAC_STAGES=2          $MAC
 neg "mac A_W=6"       mac_top     -Pmac_top.A_W=6                 $MAC
 

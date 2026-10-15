@@ -9,6 +9,7 @@
 module mul_chk #(
     parameter   A_W     = 8         ,
     parameter   ARCH    = 0         ,
+    parameter   AARCH   = 4         ,   // ADDER_ARCH of the final addition (structured multipliers)
     parameter   EXH     = 1         ,
     parameter   NRAND   = 1000000   ,
     parameter   SEED    = 1
@@ -25,7 +26,7 @@ wire signed [2*A_W-1:0]     p;
 reg  signed [2*A_W-1:0]     exp;
 integer i, j, k, seed;
 
-mul_top #(.A_W(A_W), .MULT_ARCH(ARCH)) dut (.i_a(a), .i_b(b), .o_p(p));
+mul_top #(.A_W(A_W), .MULT_ARCH(ARCH), .ADDER_ARCH(AARCH)) dut (.i_a(a), .i_b(b), .o_p(p));
 
 task check;
     input signed [A_W-1:0] ta, tb;
@@ -77,21 +78,23 @@ end
 endmodule
 
 module tb_mul;
-parameter ARCH = 0;
+parameter ARCH  = 0;
+parameter AARCH = 4;
+parameter NR16  = 1000000;      // random pairs for A_W = 16 (M2: 1,000,000)
 wire        d4, d8, d16;
 wire [31:0] p4, p8, p16, f4, f8, f16, h4, h8, h16;
 wire [4:0]  c4, c8, c16;
 
-mul_chk #(.A_W(4 ), .ARCH(ARCH), .EXH(1))               u4  (d4 , p4 , f4 , h4 , c4 );
-mul_chk #(.A_W(8 ), .ARCH(ARCH), .EXH(1))               u8  (d8 , p8 , f8 , h8 , c8 );
-mul_chk #(.A_W(16), .ARCH(ARCH), .EXH(0), .SEED(2))     u16 (d16, p16, f16, h16, c16);
+mul_chk #(.A_W(4 ), .ARCH(ARCH), .AARCH(AARCH), .EXH(1))                          u4  (d4 , p4 , f4 , h4 , c4 );
+mul_chk #(.A_W(8 ), .ARCH(ARCH), .AARCH(AARCH), .EXH(1))                          u8  (d8 , p8 , f8 , h8 , c8 );
+mul_chk #(.A_W(16), .ARCH(ARCH), .AARCH(AARCH), .EXH(0), .NRAND(NR16), .SEED(2))  u16 (d16, p16, f16, h16, c16);
 
 wire [31:0] pass = p4 + p8 + p16;
 wire [31:0] fail = f4 + f8 + f16;
 
 initial begin
     wait (d4 && d8 && d16);
-    $display("tb_mul MULT_ARCH=%0d seed=2(A_W=16) : PASS=%0d FAIL=%0d", ARCH, pass, fail);
+    $display("tb_mul MULT_ARCH=%0d ADDER_ARCH=%0d random(A_W=16)=%0d seed=2 : PASS=%0d FAIL=%0d", ARCH, AARCH, NR16, pass, fail);
     $display("HASH %h %h %h", h4, h8, h16);
     $display("coverage (min*min zero pos*neg neg*neg pos*pos) A_W4=%b A_W8=%b A_W16=%b", c4, c8, c16);
     if (fail == 0 && c4 == 5'h1F && c8 == 5'h1F && c16 == 5'h1F)
