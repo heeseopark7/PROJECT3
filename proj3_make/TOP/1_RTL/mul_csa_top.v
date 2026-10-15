@@ -4,7 +4,7 @@
 //   Purpose : Entry point for the structured multipliers that stop at carry-save form.
 //             Returns o_s, o_c with  o_s + o_c == i_a * i_b  (mod 2**(2*A_W)).
 //   Structure: generate-select of one module by MULT_ARCH:
-//                1 Array (mul_array_csa)    2 Booth radix-4 + Wallace (reserved)
+//                1 Array (mul_array_csa)    2 Booth radix-4 + Wallace (mul_booth_csa)
 //              MULT_ARCH = 0 (BEH) has no carry-save form and is NOT supported here.
 //   Latency : 0 (combinational)
 //   Note    : An unimplemented MULT_ARCH (or A_W) is NOT replaced by another multiplier.
@@ -29,6 +29,15 @@ generate
     if ((A_W == 4 || A_W == 8 || A_W == 16) && MULT_ARCH == 1)
     begin : g_array
         mul_array_csa #(.A_W(A_W)) u_mul (
+            .i_a    (i_a    ),
+            .i_b    (i_b    ),
+            .o_s    (o_s    ),
+            .o_c    (o_c    )
+        );
+    end
+    else if ((A_W == 4 || A_W == 8 || A_W == 16) && MULT_ARCH == 2)
+    begin : g_booth
+        mul_booth_csa #(.A_W(A_W)) u_mul (
             .i_a    (i_a    ),
             .i_b    (i_b    ),
             .o_s    (o_s    ),

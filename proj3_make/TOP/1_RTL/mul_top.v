@@ -6,7 +6,7 @@
 //   Structure: generate-select:
 //                0 BEH    : mul_beh (one signed '*')
 //                1 Array  : mul_csa_top (carry-save) -> adder_top (final addition, ADDER_ARCH)
-//                2 Booth radix-4 + Wallace (reserved): same shape as 1, not implemented yet
+//                2 Booth radix-4 + Wallace: same shape as 1 (mul_csa_top -> adder_top)
 //   Latency : 0 (combinational)
 //   Note    : An unimplemented MULT_ARCH (or A_W) is NOT replaced by another multiplier.
 //             It instantiates a module that does not exist, so compile/elaboration fails.
@@ -37,7 +37,7 @@ generate
     end
     else if (A_W == 4 || A_W == 8 || A_W == 16)
     begin : g_csa
-        // MULT_ARCH 1 (Array) is implemented; 2 (Booth) makes mul_csa_top fail at elaboration.
+        // MULT_ARCH 1 (Array) and 2 (Booth); any other value makes mul_csa_top fail at elaboration.
         wire    [2*A_W-1:0]     w_s     ;
         wire    [2*A_W-1:0]     w_c     ;
         wire    [2*A_W-1:0]     w_sum   ;

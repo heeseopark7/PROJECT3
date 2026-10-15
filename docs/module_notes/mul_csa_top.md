@@ -2,7 +2,7 @@
 
 **하는 일**: carry-save 형태까지만 만드는 구조형 곱셈기들의 단일 입구. `MULT_ARCH`로 고른다(1 Array, 2 Booth+Wallace). 포트는 `i_a, i_b → o_s, o_c`로 같다. 약속: `o_s + o_c ≡ a×b (mod 2^(2·A_W))`.
 
-**구조**: `generate if`로 `mul_array_csa`(1)를 인스턴스한다. 2(Booth)는 아직 없다.
+**구조**: `generate if`로 `mul_array_csa`(1) 또는 `mul_booth_csa`(2)를 인스턴스한다.
 
 **왜 이렇게**
 - `MULT_ARCH=0`(BEH)은 지원하지 않는다. `*` 연산자는 툴이 안에서 알아서 곱셈 구조를 만들기 때문에 carry-save 경계가 없어서다(그래서 MAC 3단도 BEH에서는 불가).

@@ -11,7 +11,7 @@ rc=0
 
 ADDER_ARCHS="4 0 2"     # implemented ADDER_ARCH codes   (4 BEH, 0 RCA, 2 Kogge-Stone)
 SHIFTER_ARCHS="1 0"     # implemented SHIFTER_ARCH codes (1 barrel, 0 loop)
-MULT_ARCHS="0 1"        # implemented MULT_ARCH codes    (0 BEH, 1 Array)
+MULT_ARCHS="0 1 2"      # implemented MULT_ARCH codes    (0 BEH, 1 Array, 2 Booth+Wallace)
 
 JOBS=${JOBS:-4}         # simulations run in parallel
 ORDER=""                # job names in launch order (for printing)
@@ -54,7 +54,7 @@ ADD="$RTL/adder_top.v $RTL/adder_beh.v $RTL/adder_rca.v $RTL/adder_ks.v"
 SHF="$RTL/alu_shifter.v $RTL/shr_barrel.v $RTL/shr_loop.v"
 CORE="$RTL/alu_core.v $ADD $SHF"
 TOP="$RTL/alu_top.v $CORE"
-MUL="$RTL/mul_top.v $RTL/mul_beh.v $RTL/mul_csa_top.v $RTL/mul_array_csa.v $ADD"
+MUL="$RTL/mul_top.v $RTL/mul_beh.v $RTL/mul_csa_top.v $RTL/mul_array_csa.v $RTL/mul_booth_csa.v $ADD"
 MAC="$RTL/mac_top.v $MUL"
 
 echo "=== SIM (up to $JOBS in parallel) ==="
@@ -135,9 +135,9 @@ neg() {  # label top param-flag rtl-files...
 neg "adder ARCH=1"    adder_top   -Padder_top.ADDER_ARCH=1        $ADD
 neg "adder ARCH=3"    adder_top   -Padder_top.ADDER_ARCH=3        $ADD
 neg "shifter ARCH=2"  alu_shifter -Palu_shifter.SHIFTER_ARCH=2    $SHF
-neg "mul ARCH=2"      mul_top     -Pmul_top.MULT_ARCH=2           $MUL
 neg "mul ARCH=3"      mul_top     -Pmul_top.MULT_ARCH=3           $MUL
 neg "mul_csa ARCH=0"  mul_csa_top -Pmul_csa_top.MULT_ARCH=0       $MUL
+neg "mul_csa ARCH=3"  mul_csa_top -Pmul_csa_top.MULT_ARCH=3       $MUL
 neg "mul A_W=6"       mul_top     -Pmul_top.A_W=6                 $MUL
 neg "mac STAGES=2"    mac_top     -Pmac_top.MAC_STAGES=2          $MAC
 neg "mac A_W=6"       mac_top     -Pmac_top.A_W=6                 $MAC
