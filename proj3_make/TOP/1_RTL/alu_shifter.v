@@ -6,7 +6,7 @@
 //              Left shift = reverse input bits -> right shift -> reverse output bits.
 //              Fill bit = 1 only for SRA of a negative value (i_arith & sign bit).
 //   Latency : 0 (combinational)
-//   SHIFTER_ARCH : 0 loop (reserved, stage 2)   1 barrel (default)
+//   SHIFTER_ARCH : 0 loop (shr_loop)   1 barrel (shr_barrel, default)
 //   Note    : An unimplemented SHIFTER_ARCH (or XLEN) is NOT replaced by another core.
 //             It instantiates a module that does not exist, so elaboration fails.
 // -----------------------------------------------------------------------------
@@ -55,7 +55,16 @@ endgenerate
 
 // Core selection
 generate
-    if ((XLEN == 8 || XLEN == 16 || XLEN == 32) && SHIFTER_ARCH == 1)
+    if ((XLEN == 8 || XLEN == 16 || XLEN == 32) && SHIFTER_ARCH == 0)
+    begin : g_loop
+        shr_loop #(.XLEN(XLEN)) u_core (
+            .i_din      (w_core_din ),
+            .i_shamt    (i_shamt    ),
+            .i_fill     (w_fill     ),
+            .o_dout     (w_core_dout)
+        );
+    end
+    else if ((XLEN == 8 || XLEN == 16 || XLEN == 32) && SHIFTER_ARCH == 1)
     begin : g_barrel
         shr_barrel #(.XLEN(XLEN)) u_core (
             .i_din      (w_core_din ),

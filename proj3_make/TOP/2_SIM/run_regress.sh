@@ -1,86 +1,94 @@
 #!/bin/bash
 # One-command regression for the RTL written so far.  Usage: bash 2_SIM/run_regress.sh
-# Runs: iverilog (-g2001) sim, Verilator lint (-Wall), Yosys read_verilog (plain Verilog-2001).
+# Runs: iverilog (-g2001) sim, Verilator lint (-Wall), Yosys read_verilog (plain Verilog-2001),
+#       and checks that every implemented ARCH combination gives the SAME output HASH (V10/V11/M6).
+# To add a variant: append its code to ADDER_ARCHS / SHIFTER_ARCHS (and its file to ADD / SHF).
 cd "$(dirname "$0")" || exit 1
 RTL=../1_RTL
 OUT=${TMPDIR:-/tmp}/proj3_regress
-mkdir -p "$OUT"
+rm -rf "$OUT"; mkdir -p "$OUT"
 rc=0
 
-run_sim() {  # name tb param-override rtl-files...
+ADDER_ARCHS="4 0"       # implemented ADDER_ARCH codes   (4 BEH, 0 RCA)
+SHIFTER_ARCHS="1 0"     # implemented SHIFTER_ARCH codes (1 barrel, 0 loop)
+
+run_sim() {  # name tb "param-flags" rtl-files...      (param-flags example: "-Ptb.X=1 -Ptb.Y=2")
     local name=$1 tb=$2 par=$3; shift 3
-    iverilog -g2001 -Wall -Wno-timescale -I$RTL -P"$par" -o "$OUT/$name.vvp" "$tb" "$@" || { echo "COMPILE FAIL: $name"; rc=1; return; }
-    vvp "$OUT/$name.vvp" | tee "$OUT/$name.log" | grep -v '^$'
+    iverilog -g2001 -Wall -Wno-timescale -I$RTL $par -o "$OUT/$name.vvp" "$tb" "$@" || { echo "COMPILE FAIL: $name"; rc=1; return; }
+    vvp "$OUT/$name.vvp" | tee "$OUT/$name.log" | grep -v '^$' | grep -v 'finish called'
     grep -q "RESULT: PASS" "$OUT/$name.log" || { echo ">>> $name FAILED"; rc=1; }
 }
 
+same_hash() {  # label log-glob-prefix
+    local n; n=$(grep -h '^HASH' $OUT/$2*.log | sort -u | wc -l)
+    if [ "$n" -ne 1 ]; then echo ">>> $1 output HASH differs between ARCH combos"; rc=1
+    else echo "$1 HASH identical across all combos: $(grep -h '^HASH' $OUT/$2*.log | sort -u)"; fi
+}
+
 ADD="$RTL/adder_top.v $RTL/adder_beh.v $RTL/adder_rca.v"
-SHF="$RTL/alu_shifter.v $RTL/shr_barrel.v"
+SHF="$RTL/alu_shifter.v $RTL/shr_barrel.v $RTL/shr_loop.v"
 CORE="$RTL/alu_core.v $ADD $SHF"
 TOP="$RTL/alu_top.v $CORE"
 MUL="$RTL/mul_top.v $RTL/mul_beh.v"
 MAC="$RTL/mac_top.v $MUL $ADD"
 
 echo "=== SIM ==="
-run_sim adder_beh   TESTBENCH/tb_adder.v   tb_adder.ARCH=4   $ADD
-run_sim adder_rca   TESTBENCH/tb_adder.v   tb_adder.ARCH=0   $ADD
-run_sim shr_barrel  TESTBENCH/tb_shifter.v tb_shifter.ARCH=1 $SHF
+for aa in $ADDER_ARCHS; do run_sim adder_a$aa TESTBENCH/tb_adder.v "-Ptb_adder.ARCH=$aa" $ADD; done
+for sa in $SHIFTER_ARCHS; do run_sim shifter_s$sa TESTBENCH/tb_shifter.v "-Ptb_shifter.ARCH=$sa" $SHF; done
+same_hash shifter shifter_
 
-# alu_core: every implemented (ADDER_ARCH x SHIFTER_ARCH) must pass and give the SAME output HASH (V10/V11)
-for aa in 4 0; do
-    run_sim core_a${aa}_s1 TESTBENCH/tb_alu_core.v tb_alu_core.AARCH=$aa $CORE
-done
-if [ "$(grep -h '^HASH' $OUT/core_a*_s1.log | sort -u | wc -l)" -ne 1 ]; then
-    echo ">>> alu_core output HASH differs between ARCH combos"; rc=1
-else
-    echo "alu_core HASH identical across ARCH combos: $(grep -h '^HASH' $OUT/core_a4_s1.log)"
-fi
+for aa in $ADDER_ARCHS; do for sa in $SHIFTER_ARCHS; do
+    run_sim core_a${aa}_s$sa TESTBENCH/tb_alu_core.v "-Ptb_alu_core.AARCH=$aa -Ptb_alu_core.SARCH=$sa" $CORE
+done; done
+same_hash alu_core core_
 
-# alu_top: same idea (V9 + V10/V11)
-for aa in 4 0; do
-    run_sim top_a${aa}_s1 TESTBENCH/tb_ALU.v tb_ALU.AARCH=$aa $TOP
-done
-if [ "$(grep -h '^HASH' $OUT/top_a*_s1.log | sort -u | wc -l)" -ne 1 ]; then
-    echo ">>> alu_top output HASH differs between ARCH combos"; rc=1
-else
-    echo "alu_top HASH identical across ARCH combos: $(grep -h '^HASH' $OUT/top_a4_s1.log)"
-fi
+for aa in $ADDER_ARCHS; do for sa in $SHIFTER_ARCHS; do
+    run_sim top_a${aa}_s$sa TESTBENCH/tb_ALU.v "-Ptb_ALU.AARCH=$aa -Ptb_ALU.SARCH=$sa" $TOP
+done; done
+same_hash alu_top top_
 
-# multiplier (M1, M2, M7) and MAC (M3, M4, M5, M7); same stimulus -> same HASH across ARCH combos (M6)
-run_sim mul_beh TESTBENCH/tb_mul.v tb_mul.ARCH=0 $MUL
-for aa in 4 0; do
-    run_sim mac_m0_a${aa}_s1 TESTBENCH/tb_MAC.v tb_MAC.AARCH=$aa $MAC
+run_sim mul_m0 TESTBENCH/tb_mul.v "-Ptb_mul.ARCH=0" $MUL
+for aa in $ADDER_ARCHS; do
+    run_sim mac_m0_a${aa}_st1 TESTBENCH/tb_MAC.v "-Ptb_MAC.AARCH=$aa" $MAC
 done
-if [ "$(grep -h '^HASH' $OUT/mac_m0_a*_s1.log | sort -u | wc -l)" -ne 1 ]; then
-    echo ">>> mac_top output HASH differs between ARCH combos"; rc=1
-else
-    echo "mac_top HASH identical across ARCH combos: $(grep -h '^HASH' $OUT/mac_m0_a4_s1.log)"
-fi
+same_hash mac_top mac_
 
 echo "=== LINT (verilator --lint-only -Wall) ==="
-verilator --lint-only -Wall --top-module adder_top  $ADD && echo "adder_top: clean"   || rc=1
-verilator --lint-only -Wall --top-module alu_shifter $SHF && echo "alu_shifter: clean" || rc=1
-verilator --lint-only -Wall -I$RTL --top-module alu_core $CORE && echo "alu_core: clean" || rc=1
-verilator --lint-only -Wall -I$RTL --top-module alu_top $TOP && echo "alu_top: clean" || rc=1
+for aa in $ADDER_ARCHS; do
+    verilator --lint-only -Wall --top-module adder_top -GADDER_ARCH=$aa $ADD && echo "adder_top ADDER_ARCH=$aa: clean" || rc=1
+done
+for sa in $SHIFTER_ARCHS; do for x in 8 16 32; do
+    verilator --lint-only -Wall --top-module alu_shifter -GXLEN=$x -GSHIFTER_ARCH=$sa $SHF && echo "alu_shifter XLEN=$x SHIFTER_ARCH=$sa: clean" || rc=1
+done; done
+for aa in $ADDER_ARCHS; do for sa in $SHIFTER_ARCHS; do
+    verilator --lint-only -Wall -I$RTL --top-module alu_core -GADDER_ARCH=$aa -GSHIFTER_ARCH=$sa $CORE && echo "alu_core A=$aa S=$sa: clean" || rc=1
+    verilator --lint-only -Wall -I$RTL --top-module alu_top  -GADDER_ARCH=$aa -GSHIFTER_ARCH=$sa $TOP  && echo "alu_top  A=$aa S=$sa: clean" || rc=1
+done; done
 verilator --lint-only -Wall --top-module mul_top $MUL && echo "mul_top: clean" || rc=1
 verilator --lint-only -Wall --top-module mac_top $MAC && echo "mac_top: clean" || rc=1
 
 echo "=== YOSYS read_verilog ==="
-yosys -q -p "read_verilog $ADD; hierarchy -check -top adder_top" && \
-yosys -q -p "read_verilog $SHF; hierarchy -check -top alu_shifter" && \
-yosys -q -p "read_verilog -I$RTL $CORE; hierarchy -check -top alu_core" && \
-yosys -q -p "read_verilog -I$RTL $TOP; hierarchy -check -top alu_top" && \
-yosys -q -p "read_verilog $MUL; hierarchy -check -top mul_top" && \
-yosys -q -p "read_verilog $MAC; hierarchy -check -top mac_top" && echo "yosys: ok" || rc=1
+y() { yosys -q -p "read_verilog -I$RTL $1; hierarchy -check -top $2 $3" || rc=1; }
+for aa in $ADDER_ARCHS; do y "$ADD" adder_top "-chparam ADDER_ARCH $aa"; done
+for sa in $SHIFTER_ARCHS; do y "$SHF" alu_shifter "-chparam SHIFTER_ARCH $sa"; done
+for aa in $ADDER_ARCHS; do for sa in $SHIFTER_ARCHS; do
+    y "$CORE" alu_core "-chparam ADDER_ARCH $aa -chparam SHIFTER_ARCH $sa"
+    y "$TOP"  alu_top  "-chparam ADDER_ARCH $aa -chparam SHIFTER_ARCH $sa"
+done; done
+y "$MUL" mul_top ""
+y "$MAC" mac_top ""
+[ $rc -eq 0 ] && echo "yosys: ok"
 
-echo "=== NEGATIVE: unimplemented ARCH must fail ==="
-iverilog -g2001 -Padder_top.ADDER_ARCH=2 -s adder_top -o /dev/null $ADD 2>&1 | head -2
-iverilog -g2001 -Padder_top.ADDER_ARCH=2 -s adder_top -o /dev/null $ADD >/dev/null 2>&1 && { echo "ERROR: ADDER_ARCH=2 compiled"; rc=1; } || echo "adder ARCH=2: rejected (expected)"
-iverilog -g2001 -Palu_shifter.SHIFTER_ARCH=0 -s alu_shifter -o /dev/null $SHF >/dev/null 2>&1 && { echo "ERROR: SHIFTER_ARCH=0 compiled"; rc=1; } || echo "shifter ARCH=0: rejected (expected)"
-
-iverilog -g2001 -Pmul_top.MULT_ARCH=1 -s mul_top -o /dev/null $MUL >/dev/null 2>&1 && { echo "ERROR: MULT_ARCH=1 compiled"; rc=1; } || echo "mul ARCH=1: rejected (expected)"
-iverilog -g2001 -Pmac_top.MAC_STAGES=2 -s mac_top -o /dev/null $MAC >/dev/null 2>&1 && { echo "ERROR: MAC_STAGES=2 compiled"; rc=1; } || echo "mac STAGES=2: rejected (expected)"
-iverilog -g2001 -Pmac_top.A_W=6 -s mac_top -o /dev/null $MAC >/dev/null 2>&1 && { echo "ERROR: A_W=6 compiled"; rc=1; } || echo "mac A_W=6: rejected (expected)"
+echo "=== NEGATIVE: unimplemented ARCH must fail elaboration ==="
+neg() {  # label top param-flag rtl-files...
+    local label=$1 top=$2 par=$3; shift 3
+    iverilog -g2001 $par -s $top -o /dev/null "$@" >/dev/null 2>&1 && { echo "ERROR: $label compiled"; rc=1; } || echo "$label: rejected (expected)"
+}
+neg "adder ARCH=2"    adder_top   -Padder_top.ADDER_ARCH=2        $ADD
+neg "shifter ARCH=2"  alu_shifter -Palu_shifter.SHIFTER_ARCH=2    $SHF
+neg "mul ARCH=1"      mul_top     -Pmul_top.MULT_ARCH=1           $MUL
+neg "mac STAGES=2"    mac_top     -Pmac_top.MAC_STAGES=2          $MAC
+neg "mac A_W=6"       mac_top     -Pmac_top.A_W=6                 $MAC
 
 [ $rc -eq 0 ] && echo "ALL OK" || echo "REGRESSION FAILED"
 exit $rc

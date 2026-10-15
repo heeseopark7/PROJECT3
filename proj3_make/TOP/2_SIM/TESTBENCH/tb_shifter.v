@@ -14,6 +14,7 @@ module shifter_chk #(
     output reg          o_done  ,
     output reg  [31:0]  o_pass  ,
     output reg  [31:0]  o_fail  ,
+    output reg  [31:0]  o_hash  ,
     output reg  [31:0]  o_cov   // bit0 SLL, bit1 SRL, bit2 SRA sign0, bit3 SRA sign1, bit4 all shamt seen
 );
 
@@ -54,6 +55,7 @@ task check;
                      XLEN, ARCH, op, td, ts, exp, dout);
         end else
             o_pass = o_pass + 1;
+        o_hash = {o_hash[30:0], o_hash[31]} ^ {{(32-XLEN){1'b0}}, dout};
         case (op)
             2'd0: begin o_cov[0] = 1; seen_l[ts] = 1; end
             2'd1: begin o_cov[1] = 1; seen_r[ts] = 1; end
@@ -78,7 +80,7 @@ endtask
 reg [63:0] full;
 
 initial begin
-    o_done = 0; o_pass = 0; o_fail = 0; o_cov = 0;
+    o_done = 0; o_pass = 0; o_fail = 0; o_hash = 32'h1234_5678; o_cov = 0;
     seen_l = 0; seen_r = 0; seen_a = 0;
     seed = SEED;
     full = (64'd1 << XLEN) - 64'd1;
@@ -102,11 +104,11 @@ endmodule
 module tb_shifter;
 parameter ARCH = 1;
 wire        d8, d16, d32;
-wire [31:0] p8, p16, p32, f8, f16, f32, c8, c16, c32;
+wire [31:0] p8, p16, p32, f8, f16, f32, h8, h16, h32, c8, c16, c32;
 
-shifter_chk #(.XLEN(8 ), .ARCH(ARCH))             u8  (.o_done(d8 ), .o_pass(p8 ), .o_fail(f8 ), .o_cov(c8 ));
-shifter_chk #(.XLEN(16), .ARCH(ARCH), .SEED(2))   u16 (.o_done(d16), .o_pass(p16), .o_fail(f16), .o_cov(c16));
-shifter_chk #(.XLEN(32), .ARCH(ARCH), .SEED(3))   u32 (.o_done(d32), .o_pass(p32), .o_fail(f32), .o_cov(c32));
+shifter_chk #(.XLEN(8 ), .ARCH(ARCH))             u8  (.o_done(d8 ), .o_pass(p8 ), .o_fail(f8 ), .o_hash(h8 ), .o_cov(c8 ));
+shifter_chk #(.XLEN(16), .ARCH(ARCH), .SEED(2))   u16 (.o_done(d16), .o_pass(p16), .o_fail(f16), .o_hash(h16), .o_cov(c16));
+shifter_chk #(.XLEN(32), .ARCH(ARCH), .SEED(3))   u32 (.o_done(d32), .o_pass(p32), .o_fail(f32), .o_hash(h32), .o_cov(c32));
 
 wire [31:0] pass = p8 + p16 + p32;
 wire [31:0] fail = f8 + f16 + f32;
@@ -114,6 +116,7 @@ wire [31:0] fail = f8 + f16 + f32;
 initial begin
     wait (d8 && d16 && d32);
     $display("tb_shifter SHIFTER_ARCH=%0d seeds=1,2,3 : PASS=%0d FAIL=%0d", ARCH, pass, fail);
+    $display("HASH %h %h %h", h8, h16, h32);
     $display("coverage (all_shamt SRAsign1 SRAsign0 SRL SLL) XLEN8=%b XLEN16=%b XLEN32=%b",
              c8[4:0], c16[4:0], c32[4:0]);
     if (fail == 0 && c8[4:0] == 5'h1F && c16[4:0] == 5'h1F && c32[4:0] == 5'h1F)

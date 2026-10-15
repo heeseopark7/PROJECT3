@@ -435,4 +435,4 @@ P1의 zero 검출은 결과 mux 뒤에 붙는 OR 트리라 길어질 가능성�
 | O7  | zero 검출 구조 개선 실험, 시프터 공유형 vs 분리형 비교                                     | 후속 H3 결과 확인 후              |
 | O8  | XLEN / A_W 64 지원 여부 (넣으면 회귀에 추가)                                               | RTL 완료 후, 회귀 전              |
 | O9  | 컴파일 경고·lint 기준이 될 도구 선정                                                       | 다음 모듈 작성 전 (결정 2026-10-15 승인: Verilator `--lint-only -Wall`, Yosys `read_verilog`, iverilog `-g2001`. 경고 0 또는 전부 해석) |
-| O10 | RCA의 벡터 방식 carry 기술이 경고 없이 통과하는지. 경고가 나면 비트별 generate로 전환      | O9 결정 후 (결정 2026-10-15 승인: 벡터 방식 유지. adder_top 경유 Verilator -Wall 경고 0 확인) |
+| O10 | RCA의 벡터 방식 carry 기술이 경고 없이 통과하는지. 경고가 나면 비트별 generate로 전환      | O9 결정 후 (정정 2026-10-15: 처음 "벡터 방식 유지"로 기록했으나, ADDER_ARCH=0으로 elaborate한 lint에서 Verilator -Wall UNOPTFLAT 경고가 확인됨. 당초 결정 규칙대로 비트별 generate로 전환, 이후 경고 0) |
