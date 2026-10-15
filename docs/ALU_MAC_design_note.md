@@ -429,10 +429,10 @@ P1의 zero 검출은 결과 mux 뒤에 붙는 OR 트리라 길어질 가능성�
 | O1  | 공정/라이브러리 선택 (학교 제공 환경 확인)                                                 | 후속 합성을 수행할 때             |
 | O2  | 목표 클럭 주기 집합                                                                        | 후속 T1 첫 합성 결과 확인 후      |
 | O3  | CLA 계층 구조의 세부(블록 크기, 트리 fan-in)                                               | adder_cla 작성 전 (CLA를 할 경우) |
-| O4  | Brent-Kung 포함 여부                                                                       | adder_top 작성 전                 |
+| O4  | Brent-Kung 포함 여부                                                                       | adder_top 작성 전 (결정 2026-10-15 승인: 코드 3은 예약만, 구현은 4단계 선택. 미구현 ARCH는 BEH로 대체하지 않고 elaboration 실패) |
 | O5  | 부호 곱셈 방식(Baugh-Wooley vs 부호 확장)과 3단 분할 경계(압축 끝 / 최종 합산)             | mul_array_csa 작성 전             |
 | O6  | i_clr과 i_en 동시 입력 시 동작. 현재는 clr 우선(acc ← 0). 대안은 "새 누산 시작"(acc ← a×b) | 스펙 확정 시                      |
 | O7  | zero 검출 구조 개선 실험, 시프터 공유형 vs 분리형 비교                                     | 후속 H3 결과 확인 후              |
 | O8  | XLEN / A_W 64 지원 여부 (넣으면 회귀에 추가)                                               | RTL 완료 후, 회귀 전              |
-| O9  | 컴파일 경고·lint 기준이 될 도구 선정                                                       | 다음 모듈 작성 전                 |
-| O10 | RCA의 벡터 방식 carry 기술이 경고 없이 통과하는지. 경고가 나면 비트별 generate로 전환      | O9 결정 후                        |
+| O9  | 컴파일 경고·lint 기준이 될 도구 선정                                                       | 다음 모듈 작성 전 (결정 2026-10-15 승인: Verilator `--lint-only -Wall`, Yosys `read_verilog`, iverilog `-g2001`. 경고 0 또는 전부 해석) |
+| O10 | RCA의 벡터 방식 carry 기술이 경고 없이 통과하는지. 경고가 나면 비트별 generate로 전환      | O9 결정 후 (결정 2026-10-15 승인: 벡터 방식 유지. adder_top 경유 Verilator -Wall 경고 0 확인) |
