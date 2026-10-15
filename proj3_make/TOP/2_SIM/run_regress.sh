@@ -2,6 +2,7 @@
 # =============================================================================
 # One-command regression.   Usage:  bash 2_SIM/run_regress.sh        (from anywhere)
 #   MODE=full   (default) Phase 1 + Phase 2 + lint + yosys + negative tests
+#   MODE=vl               Phase 1 only (Verilator, full volume) + its HASH checks; no lint/yosys
 #   MODE=quick            Phase 2 (small volume) + lint + yosys + negative tests
 #   MODE=static           NO simulation: re-check the HASH equality of logs already in $OUT, then lint + yosys + negative tests
 #   JOBS=<n>              parallel jobs (default: number of CPUs)
@@ -80,7 +81,7 @@ run_job() {   # phase idx     (phase: v = Verilator full volume, i = iverilog 4-
         par="${JV[$i]}"
         for p in $par; do flags="$flags -G$p"; done
         mkdir -p "$OUT/$tag"
-        if verilator --binary --timing -Wno-fatal -Wno-lint -Wno-style -Wno-TIMESCALEMOD -CFLAGS -O0 $flags \
+        if verilator --binary --timing -Wno-fatal -Wno-lint -Wno-style -Wno-TIMESCALEMOD -CFLAGS -O0 -I$RTL $flags \
                 --top-module $top -Mdir "$OUT/$tag" -o sim "$tb" $files > "$OUT/$tag.build" 2>&1; then
             "$OUT/$tag/sim" > "$OUT/$tag.log" 2>&1
             grep -q "RESULT: PASS" "$OUT/$tag.log" && echo ok > "$OUT/$tag.status" || echo fail > "$OUT/$tag.status"
@@ -148,11 +149,15 @@ check_hashes() {   # phase
 }
 
 echo "regression: MODE=$MODE JOBS=$JOBS jobs=${#JN[@]}"
-if [ "$MODE" = "full" ]; then
+if [ "$MODE" = "full" ] || [ "$MODE" = "vl" ]; then
     echo "=== PHASE 1: Verilator, full volume ==="
     run_phase v
     report_phase v "Phase 1 results"
     check_hashes v
+fi
+if [ "$MODE" = "vl" ]; then
+    [ $rc -eq 0 ] && echo "PHASE 1 OK" || echo "PHASE 1 FAILED"
+    exit $rc
 fi
 if [ "$MODE" != "static" ]; then
     echo "=== PHASE 2: iverilog -g2001, 4-state, small volume ==="
