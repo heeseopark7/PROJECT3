@@ -82,6 +82,7 @@
 - **Verilog-2001만** 쓴다. SystemVerilog 전용 구문 금지. Yosys + OpenSTA 재현 flow와 호환되게 하기 위해서다.
 - `$clog2` 같은 시스템 함수는 iverilog / Verilator / Yosys 모두에서 되는지 확인한 뒤 쓴다. 안 되면 localparam으로 직접 계산한다(XLEN이 8/16/32뿐).
 - wire 배열(`wire [N:0] x [0:M]`)은 Yosys 호환 문제가 있을 수 있다. 단 사이 신호는 1차원 벡터 + `[k*W +: W]` 슬라이스로 쓰는 쪽을 기본으로 한다.
+- **계층 참조(generate 블록 안의 net을 `g_row[i].w_x`처럼 이름으로 읽는 문법)는 쓰지 않는다.** 상용 합성 툴(Genus, Design Compiler) 호환이 확인되지 않았다. 단 사이를 잇는 신호는 위의 패킹 벡터 슬라이스를 쓰고, 벡터 슬라이스끼리 이어져서 생기는 lint 순환 의심(UNOPTFLAT)은 `/* verilator split_var */` 주석으로 푼다(lint 전용 힌트, 합성에는 영향 없음). 쓰지 않는 비트의 UNUSEDSIGNAL 경고는 이유를 주석으로 적고 해당 net에만 `lint_off`를 건다.
 - 조합 로직은 `always @*`로 쓰고 **블록 맨 위에서 모든 출력에 기본값**을 준다. `case`에는 항상 `default`(Reserved op도 여기서 처리). latch와 조합 루프를 만들지 않는다.
 - 순차 로직은 논블로킹(`<=`), 조합 로직은 블로킹(`=`). 한 변수는 하나의 always 블록에서만 구동한다.
 - 비트폭을 숫자로 하드코딩하지 않고 `XLEN`, `A_W`, `ACC_W`, localparam으로 표현한다.
@@ -102,6 +103,8 @@
 - 회귀는 명령 하나로 돌아야 한다. 시드는 고정하고 로그에 시드와 PASS/FAIL 개수를 남긴다. 실패하면 입력·기대값·실제 출력을 출력한다.
 - 도달 확인은 툴 커버리지가 아니라 테스트벤치 카운터로 한다: 연산 10종, Reserved 6개, ADD/SUB 플래그 조합, SRA 부호 비트 0/1, shamt 전체, 양수·음수 곱, wrap 발생 등이 실제로 실행됐는지 확인한다.
 - UVM, Python/SystemVerilog golden model은 쓰지 않는다. 합성 후 게이트레벨 시뮬레이션은 선택 사항이며 합성 단계에서 다룬다.
+- **시뮬레이터는 둘을 쓴다.** 대량 벡터(100만 단위, 8비트 전수)는 Verilator `--binary --timing`(2-상태, 빠름), 4-상태 X/Z 검사와 Verilog-2001 준수는 iverilog `-g2001`(소량). 난수는 `$random` 대신 테스트벤치 안의 자체 xorshift32를 써서 두 시뮬레이터가 같은 자극을 받게 한다. 회귀는 `bash proj3_make/TOP/2_SIM/run_regress.sh`(MODE=full|vl|quick|static)로 돈다.
+- 블록마다 모든 변형 조합의 출력 **해시(HASH)가 같아야** 한다(같은 자극에 출력이 비트 단위로 동일). 회귀 스크립트가 자동으로 비교한다.
 - **통과 기준**: 모든 테스트 불일치 0, 도달 확인 100%, 회귀 조합 전부 통과, 컴파일/lint 경고는 모두 해석되거나 제거됨.
 - 작업 완료 보고 때는 "무엇을 돌렸고 결과가 어땠는지"를 실제 로그 기준으로 말한다. 돌리지 않은 걸 통과했다고 말하지 않는다.
 
