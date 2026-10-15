@@ -18,6 +18,8 @@ ADD="$RTL/adder_top.v $RTL/adder_beh.v $RTL/adder_rca.v"
 SHF="$RTL/alu_shifter.v $RTL/shr_barrel.v"
 CORE="$RTL/alu_core.v $ADD $SHF"
 TOP="$RTL/alu_top.v $CORE"
+MUL="$RTL/mul_top.v $RTL/mul_beh.v"
+MAC="$RTL/mac_top.v $MUL $ADD"
 
 echo "=== SIM ==="
 run_sim adder_beh   TESTBENCH/tb_adder.v   tb_adder.ARCH=4   $ADD
@@ -44,22 +46,41 @@ else
     echo "alu_top HASH identical across ARCH combos: $(grep -h '^HASH' $OUT/top_a4_s1.log)"
 fi
 
+# multiplier (M1, M2, M7) and MAC (M3, M4, M5, M7); same stimulus -> same HASH across ARCH combos (M6)
+run_sim mul_beh TESTBENCH/tb_mul.v tb_mul.ARCH=0 $MUL
+for aa in 4 0; do
+    run_sim mac_m0_a${aa}_s1 TESTBENCH/tb_MAC.v tb_MAC.AARCH=$aa $MAC
+done
+if [ "$(grep -h '^HASH' $OUT/mac_m0_a*_s1.log | sort -u | wc -l)" -ne 1 ]; then
+    echo ">>> mac_top output HASH differs between ARCH combos"; rc=1
+else
+    echo "mac_top HASH identical across ARCH combos: $(grep -h '^HASH' $OUT/mac_m0_a4_s1.log)"
+fi
+
 echo "=== LINT (verilator --lint-only -Wall) ==="
 verilator --lint-only -Wall --top-module adder_top  $ADD && echo "adder_top: clean"   || rc=1
 verilator --lint-only -Wall --top-module alu_shifter $SHF && echo "alu_shifter: clean" || rc=1
 verilator --lint-only -Wall -I$RTL --top-module alu_core $CORE && echo "alu_core: clean" || rc=1
 verilator --lint-only -Wall -I$RTL --top-module alu_top $TOP && echo "alu_top: clean" || rc=1
+verilator --lint-only -Wall --top-module mul_top $MUL && echo "mul_top: clean" || rc=1
+verilator --lint-only -Wall --top-module mac_top $MAC && echo "mac_top: clean" || rc=1
 
 echo "=== YOSYS read_verilog ==="
 yosys -q -p "read_verilog $ADD; hierarchy -check -top adder_top" && \
 yosys -q -p "read_verilog $SHF; hierarchy -check -top alu_shifter" && \
 yosys -q -p "read_verilog -I$RTL $CORE; hierarchy -check -top alu_core" && \
-yosys -q -p "read_verilog -I$RTL $TOP; hierarchy -check -top alu_top" && echo "yosys: ok" || rc=1
+yosys -q -p "read_verilog -I$RTL $TOP; hierarchy -check -top alu_top" && \
+yosys -q -p "read_verilog $MUL; hierarchy -check -top mul_top" && \
+yosys -q -p "read_verilog $MAC; hierarchy -check -top mac_top" && echo "yosys: ok" || rc=1
 
 echo "=== NEGATIVE: unimplemented ARCH must fail ==="
 iverilog -g2001 -Padder_top.ADDER_ARCH=2 -s adder_top -o /dev/null $ADD 2>&1 | head -2
 iverilog -g2001 -Padder_top.ADDER_ARCH=2 -s adder_top -o /dev/null $ADD >/dev/null 2>&1 && { echo "ERROR: ADDER_ARCH=2 compiled"; rc=1; } || echo "adder ARCH=2: rejected (expected)"
 iverilog -g2001 -Palu_shifter.SHIFTER_ARCH=0 -s alu_shifter -o /dev/null $SHF >/dev/null 2>&1 && { echo "ERROR: SHIFTER_ARCH=0 compiled"; rc=1; } || echo "shifter ARCH=0: rejected (expected)"
+
+iverilog -g2001 -Pmul_top.MULT_ARCH=1 -s mul_top -o /dev/null $MUL >/dev/null 2>&1 && { echo "ERROR: MULT_ARCH=1 compiled"; rc=1; } || echo "mul ARCH=1: rejected (expected)"
+iverilog -g2001 -Pmac_top.MAC_STAGES=2 -s mac_top -o /dev/null $MAC >/dev/null 2>&1 && { echo "ERROR: MAC_STAGES=2 compiled"; rc=1; } || echo "mac STAGES=2: rejected (expected)"
+iverilog -g2001 -Pmac_top.A_W=6 -s mac_top -o /dev/null $MAC >/dev/null 2>&1 && { echo "ERROR: A_W=6 compiled"; rc=1; } || echo "mac A_W=6: rejected (expected)"
 
 [ $rc -eq 0 ] && echo "ALL OK" || echo "REGRESSION FAILED"
 exit $rc
