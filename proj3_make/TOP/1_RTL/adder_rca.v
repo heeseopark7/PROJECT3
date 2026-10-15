@@ -1,5 +1,11 @@
-`timescale 1ns / 1ps
-
+`default_nettype none
+// -----------------------------------------------------------------------------
+// adder_rca
+//   Purpose : Ripple-carry adder. Smallest structure, carry passes through every bit.
+//   Structure: per-bit propagate p = a^b, generate g = a&b, carry c[i+1] = g[i] | (p[i] & c[i]),
+//              sum = p ^ c. The carry vector is written as one vector expression.
+//   Latency : 0 (combinational)
+// -----------------------------------------------------------------------------
 module adder_rca #(
     parameter   W   = 32
 )(
@@ -10,11 +16,11 @@ module adder_rca #(
                 o_cout
 );
 
-input   [W-1:0] i_a     ;
-input   [W-1:0] i_b     ;
-input           i_cin   ;
-output  [W-1:0] o_sum   ;
-output          o_cout  ;
+input   wire    [W-1:0] i_a     ;
+input   wire    [W-1:0] i_b     ;
+input   wire            i_cin   ;
+output  wire    [W-1:0] o_sum   ;
+output  wire            o_cout  ;
 
 wire    [W-1:0] w_p     ;
 wire    [W-1:0] w_g     ;
@@ -29,3 +35,4 @@ assign  o_sum   =   w_p ^ w_c[W-1:0]   ;
 assign  w_c[W:1]    =   w_g | (w_p & w_c[W-1:0]);
 
 endmodule
+`default_nettype wire
