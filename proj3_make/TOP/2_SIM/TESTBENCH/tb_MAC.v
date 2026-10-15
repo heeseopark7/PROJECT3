@@ -214,13 +214,14 @@ module tb_MAC;
 parameter MARCH  = 0;
 parameter AARCH  = 4;
 parameter STAGES = 1;
+parameter NCYC   = 20000;       // cycles of phase A (reset-free) and of phase B (with async resets)
 
 wire        d4, d8, d16;
 wire [31:0] p4, p8, p16, f4, f8, f16, h4, h8, h16, c4, c8, c16;
 
-mac_chk #(.A_W(4 ), .MARCH(MARCH), .AARCH(AARCH), .STAGES(STAGES), .SEED(1)) u4  (d4 , p4 , f4 , h4 , c4 );
-mac_chk #(.A_W(8 ), .MARCH(MARCH), .AARCH(AARCH), .STAGES(STAGES), .SEED(2)) u8  (d8 , p8 , f8 , h8 , c8 );
-mac_chk #(.A_W(16), .MARCH(MARCH), .AARCH(AARCH), .STAGES(STAGES), .SEED(3)) u16 (d16, p16, f16, h16, c16);
+mac_chk #(.A_W(4 ), .MARCH(MARCH), .AARCH(AARCH), .STAGES(STAGES), .NA(NCYC), .NB(NCYC), .SEED(1)) u4  (d4 , p4 , f4 , h4 , c4 );
+mac_chk #(.A_W(8 ), .MARCH(MARCH), .AARCH(AARCH), .STAGES(STAGES), .NA(NCYC), .NB(NCYC), .SEED(2)) u8  (d8 , p8 , f8 , h8 , c8 );
+mac_chk #(.A_W(16), .MARCH(MARCH), .AARCH(AARCH), .STAGES(STAGES), .NA(NCYC), .NB(NCYC), .SEED(3)) u16 (d16, p16, f16, h16, c16);
 
 wire [31:0] pass = p4 + p8 + p16;
 wire [31:0] fail = f4 + f8 + f16;
@@ -231,7 +232,7 @@ localparam [31:0] ALL_COV = 32'h0000_0FFF;
 
 initial begin
     wait (d4 && d8 && d16);
-    $display("tb_MAC MULT_ARCH=%0d ADDER_ARCH=%0d MAC_STAGES=%0d seeds=1,2,3 : PASS=%0d FAIL=%0d", MARCH, AARCH, STAGES, pass, fail);
+    $display("tb_MAC MULT_ARCH=%0d ADDER_ARCH=%0d MAC_STAGES=%0d cycles=%0d seeds=1,2,3 : PASS=%0d FAIL=%0d", MARCH, AARCH, STAGES, NCYC, pass, fail);
     $display("HASH %h %h %h", h4, h8, h16);
     $display("coverage mask A_W4=%h A_W8=%h A_W16=%h (need %h)", c4, c8, c16, ALL_COV);
     if (fail == 0 && c4 == ALL_COV && c8 == ALL_COV && c16 == ALL_COV)

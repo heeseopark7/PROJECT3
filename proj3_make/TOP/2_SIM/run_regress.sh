@@ -81,9 +81,16 @@ for m in $MULT_ARCHS; do
         run_sim mulx_m${m}_a$aa TESTBENCH/tb_mul.v "-Ptb_mul.ARCH=$m -Ptb_mul.AARCH=$aa -Ptb_mul.NR16=100000" $MUL
     done
 done
+# MAC: MAC_STAGES 1 with every (MULT_ARCH x ADDER_ARCH); stages 2 and 3 with the baseline adder (BEH).
+# MAC_STAGES 3 needs a carry-save multiplier, so it skips MULT_ARCH 0.
 for m in $MULT_ARCHS; do for aa in $ADDER_ARCHS; do
-    run_sim mac_m${m}_a${aa}_st1 TESTBENCH/tb_MAC.v "-Ptb_MAC.MARCH=$m -Ptb_MAC.AARCH=$aa" $MAC
+    run_sim mac_m${m}_a${aa}_st1 TESTBENCH/tb_MAC.v "-Ptb_MAC.MARCH=$m -Ptb_MAC.AARCH=$aa -Ptb_MAC.STAGES=1" $MAC
 done; done
+for m in $MULT_ARCHS; do
+    run_sim mac_m${m}_a4_st2 TESTBENCH/tb_MAC.v "-Ptb_MAC.MARCH=$m -Ptb_MAC.AARCH=4 -Ptb_MAC.STAGES=2" $MAC
+    [ "$m" = "0" ] && continue
+    run_sim mac_m${m}_a4_st3 TESTBENCH/tb_MAC.v "-Ptb_MAC.MARCH=$m -Ptb_MAC.AARCH=4 -Ptb_MAC.STAGES=3" $MAC
+done
 collect_sims
 
 same_hash adder  adder_
@@ -111,9 +118,10 @@ done; done
 for m in $MULT_ARCHS; do [ "$m" = "0" ] && continue; for w in 4 8 16; do
     verilator --lint-only -Wall --top-module mul_csa_top -GMULT_ARCH=$m -GA_W=$w $MUL && echo "mul_csa_top MULT_ARCH=$m A_W=$w: clean" || rc=1
 done; done
-for m in $MULT_ARCHS; do for aa in $ADDER_ARCHS; do
-    verilator --lint-only -Wall --top-module mac_top -GMULT_ARCH=$m -GADDER_ARCH=$aa $MAC && echo "mac_top M=$m A=$aa: clean" || rc=1
-done; done
+for m in $MULT_ARCHS; do for aa in $ADDER_ARCHS; do for st in 1 2 3; do
+    [ "$m" = "0" ] && [ "$st" = "3" ] && continue      # BEH has no carry-save form
+    verilator --lint-only -Wall --top-module mac_top -GMULT_ARCH=$m -GADDER_ARCH=$aa -GMAC_STAGES=$st $MAC && echo "mac_top M=$m A=$aa S=$st: clean" || rc=1
+done; done; done
 
 echo "=== YOSYS read_verilog ==="
 y() { yosys -q -p "read_verilog -I$RTL $1; hierarchy -check -top $2 $3" || rc=1; }
@@ -124,7 +132,10 @@ for aa in $ADDER_ARCHS; do for sa in $SHIFTER_ARCHS; do
     y "$TOP"  alu_top  "-chparam ADDER_ARCH $aa -chparam SHIFTER_ARCH $sa"
 done; done
 for m in $MULT_ARCHS; do for w in 4 8 16; do y "$MUL" mul_top "-chparam MULT_ARCH $m -chparam A_W $w"; done; done
-for m in $MULT_ARCHS; do for aa in $ADDER_ARCHS; do y "$MAC" mac_top "-chparam MULT_ARCH $m -chparam ADDER_ARCH $aa"; done; done
+for m in $MULT_ARCHS; do for aa in $ADDER_ARCHS; do for st in 1 2 3; do
+    [ "$m" = "0" ] && [ "$st" = "3" ] && continue
+    y "$MAC" mac_top "-chparam MULT_ARCH $m -chparam ADDER_ARCH $aa -chparam MAC_STAGES $st"
+done; done; done
 [ $rc -eq 0 ] && echo "yosys: ok"
 
 echo "=== NEGATIVE: unimplemented ARCH must fail elaboration ==="
@@ -139,7 +150,8 @@ neg "mul ARCH=3"      mul_top     -Pmul_top.MULT_ARCH=3           $MUL
 neg "mul_csa ARCH=0"  mul_csa_top -Pmul_csa_top.MULT_ARCH=0       $MUL
 neg "mul_csa ARCH=3"  mul_csa_top -Pmul_csa_top.MULT_ARCH=3       $MUL
 neg "mul A_W=6"       mul_top     -Pmul_top.A_W=6                 $MUL
-neg "mac STAGES=2"    mac_top     -Pmac_top.MAC_STAGES=2          $MAC
+neg "mac STAGES=4"    mac_top     -Pmac_top.MAC_STAGES=4          $MAC
+neg "mac M=0 STAGES=3" mac_top    "-Pmac_top.MAC_STAGES=3 -Pmac_top.MULT_ARCH=0" $MAC
 neg "mac A_W=6"       mac_top     -Pmac_top.A_W=6                 $MAC
 
 [ $rc -eq 0 ] && echo "ALL OK" || echo "REGRESSION FAILED"
