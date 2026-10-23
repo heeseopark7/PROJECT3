@@ -46,6 +46,35 @@ wire            [ACC_W-1:0]     w_acc   ;
 // ---- input pads : i_* port -> w_* net -------------------------------------------
 // TODO: instantiate one input pad per bit (i_clk, i_rst_n, i_a[A_W-1:0], i_b[A_W-1:0], i_en, i_clr)
 //       pad pin facing the core drives the matching w_ net above.
+PADDI ipad1 (
+    .PAD            (i_clk          ),
+    .Y              (w_clk          )
+);
+
+PADDI ipad2 (
+    .PAD            (i_rst_n        ),
+    .Y              (w_rst_n        )
+);
+
+PADDI ipad3 [A_W-1:0](
+    .PAD            (i_a            ),
+    .Y              (w_a            )
+);
+
+PADDI ipad4 [A_W-1:0](
+    .PAD            (i_b            ),
+    .Y              (w_b            )
+);
+
+PADDI ipad5 (
+    .PAD            (i_en           ),
+    .Y              (w_en           )
+);
+
+PADDI ipad6 (
+    .PAD            (i_clr          ),
+    .Y              (w_clr          )
+);
 
 // ---- core -------------------------------------------------------------------------
 mac_top #(.A_W(A_W), .ACC_W(ACC_W), .MULT_ARCH(MULT_ARCH), .ADDER_ARCH(ADDER_ARCH), .MAC_STAGES(MAC_STAGES)) u_mac (
@@ -61,6 +90,9 @@ mac_top #(.A_W(A_W), .ACC_W(ACC_W), .MULT_ARCH(MULT_ARCH), .ADDER_ARCH(ADDER_ARC
 // ---- output pads : w_* net -> o_* port ------------------------------------------
 // TODO: instantiate one output pad per bit (o_acc[ACC_W-1:0])
 //       the matching w_ net above drives the pad pin facing the core.
-
+PADDO opad1 [ACC_W-1:0](
+    .A              (w_acc          ),
+    .PAD            (o_acc          )
+);
 endmodule
 `default_nettype wire
