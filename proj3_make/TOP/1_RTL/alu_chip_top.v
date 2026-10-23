@@ -59,6 +59,35 @@ wire                w_flag_ovf      ;
 // ---- input pads : i_* port -> w_* net -------------------------------------------
 // TODO: instantiate one input pad per bit (i_clk, i_rst_n, i_valid, i_a[XLEN-1:0], i_b[XLEN-1:0], i_alu_op[3:0])
 //       pad pin facing the core drives the matching w_ net above.
+PADDI ipad1(
+    .PAD            (i_clk          ),
+    .Y              (w_clk          )
+);
+
+PADDI ipad2(
+    .PAD            (i_rst_n        ),
+    .Y              (w_rst_n        )
+);
+
+PADDI ipad3(
+    .PAD            (i_valid        ),
+    .Y              (w_valid        )
+);
+
+PADDI ipad4[XLEN-1:0](
+    .PAD            (i_a            ),
+    .Y              (w_a            )
+);
+
+PADDI ipad5[XLEN-1:0](
+    .PAD            (i_b            ),
+    .Y              (w_b            )
+);
+
+PADDI ipad6[3:0](
+    .PAD            (i_alu_op       ),
+    .Y              (w_alu_op       )
+);
 
 // ---- core -------------------------------------------------------------------------
 alu_top #(.XLEN(XLEN), .ADDER_ARCH(ADDER_ARCH), .SHIFTER_ARCH(SHIFTER_ARCH)) u_alu (
@@ -79,6 +108,41 @@ alu_top #(.XLEN(XLEN), .ADDER_ARCH(ADDER_ARCH), .SHIFTER_ARCH(SHIFTER_ARCH)) u_a
 // ---- output pads : w_* net -> o_* port ------------------------------------------
 // TODO: instantiate one output pad per bit (o_valid, o_result[XLEN-1:0], o_flag_zero/neg/carry/ovf)
 //       the matching w_ net above drives the pad pin facing the core.
+
+PADDO opad1(
+    .A              (w_valid        ),
+    .PAD            (o_valid        )
+);
+
+PADDO opad2[XLEN-1:0](
+    .A              (w_result       ),
+    .PAD            (o_result       )
+);
+
+PADDO opad3(
+    .A              (w_flag_zero    ),
+    .PAD            (o_flag_zero    )
+);
+
+PADDO opad4(
+    .A              (w_flag_zero    ),
+    .PAD            (o_flag_zero    )
+);
+
+PADDO opad5(
+    .A              (w_flag_neg     ),
+    .Y              (o_flag_neg     )
+);
+
+PADDO opad6(
+    .A              (w_flag_carry   ),
+    .Y              (o_flag_carry   )
+);
+
+PADDO opad7(
+    .A              (w_flag_ovf     ),
+    .Y              (o_flag_ovf     )
+);
 
 endmodule
 `default_nettype wire
