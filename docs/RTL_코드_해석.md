@@ -59,7 +59,7 @@ PROJECT3/
 └── proj3_make/TOP/
     ├── 1_RTL/                         ← 합성에 쓰는 코드 (rtl.f = 파일 목록)
     └── 2_SIM/
-        ├── TESTBENCH/                 tb_adder_top, tb_alu_shifter, tb_alu_core, tb_alu_top, tb_mul_top, tb_mul_csa_top, tb_mac_top
+        ├── TESTBENCH/                 tb_adder, tb_shifter, tb_alu_core, tb_ALU, tb_mul, tb_mul_csa, tb_MAC
         ├── run_regress.sh             회귀 한 줄 실행
         └── FUNCTION/                  (옛 UART 프로젝트용 Xcelium 스크립트, 이 프로젝트와 무관)
 ```
@@ -419,13 +419,13 @@ MAC_STAGES = 3  입력레지 ─▶ [ 부분곱 생성·압축 ] ─▶ s_q,c_q 
 
 | 테스트벤치 | 대상 | 기준 모델 | 자극 | 도달 확인 |
 |---|---|---|---|---|
-| `tb_adder_top` | `adder_top` (W 8/16/24/32/40) | `+` | W=8 전수(a, b, cin 모든 조합 131,072개), 나머지는 carry 체인 전용 케이스 + 코너 + 랜덤(W=32는 100만) | cout/cin 양쪽, **carry 전파 길이 0 ~ W+1 전부** |
-| `tb_alu_shifter` | `alu_shifter` (XLEN 8/16/32) | `<<`, `>>`, `>>>` | XLEN=8 전수, 나머지는 코너 + 랜덤, 모든 shamt × 3연산 | 3연산의 모든 shamt, SRA 부호 0/1 |
+| `tb_adder` | `adder_top` (W 8/16/24/32/40) | `+` | W=8 전수(a, b, cin 모든 조합 131,072개), 나머지는 carry 체인 전용 케이스 + 코너 + 랜덤(W=32는 100만) | cout/cin 양쪽, **carry 전파 길이 0 ~ W+1 전부** |
+| `tb_shifter` | `alu_shifter` (XLEN 8/16/32) | `<<`, `>>`, `>>>` | XLEN=8 전수, 나머지는 코너 + 랜덤, 모든 shamt × 3연산 | 3연산의 모든 shamt, SRA 부호 0/1 |
 | `tb_alu_core` | `alu_core` | 확장 폭(XLEN+1비트 부호 확장) 산술. DUT 수식을 복사하지 않음 | XLEN=8 전수(16코드 전부), 나머지는 코너 49쌍 + 랜덤 + 모든 shamt(상위 비트 랜덤). 설계 노트의 검산 예시 8개를 숫자 그대로 | 16개 코드, ADD 플래그 조합 9개와 SUB 7개(도달 가능한 전부), SRA 부호, shamt |
-| `tb_alu_top` | `alu_top` | 2단 파이프라인 모델(사이클 단위) | 리셋 중 valid 유지, 지연 2에지 직접 확인, valid 갭/연속 valid, 클록 중간 비동기 리셋 | 16개 코드, 갭, 연속, 리셋, 리셋 때 버려진 결과, 지연 확인 |
-| `tb_mul_top` | `mul_top` (A_W 4/8/16) | 부호 있는 `*` | A_W=4, 8 전수, 16은 코너 + 랜덤(100만) | 양×양, 음×음, 양×음, 0, (−최소)² |
-| `tb_mul_csa_top` | `mul_csa_top` | `o_s + o_c`와 `a×b` 비교 | 같은 자극 | 같음 |
-| `tb_mac_top` | `mac_top` (A_W 4/8/16) | 명령을 에지에서 즉시 반영하는 모델. DUT는 `MAC_STAGES` 에지 전 모델 값과 비교 | A 단계 리셋 없는 랜덤, B 단계 비동기 리셋 포함 랜덤, C 단계 최악의 곱 511/512회, D 단계 리셋 직후 복구 | 양/음 곱, 부호 변화, wrap, clr/en 4조합, 리셋, 511 정상, 512 wrap |
+| `tb_ALU` | `alu_top` | 2단 파이프라인 모델(사이클 단위) | 리셋 중 valid 유지, 지연 2에지 직접 확인, valid 갭/연속 valid, 클록 중간 비동기 리셋 | 16개 코드, 갭, 연속, 리셋, 리셋 때 버려진 결과, 지연 확인 |
+| `tb_mul` | `mul_top` (A_W 4/8/16) | 부호 있는 `*` | A_W=4, 8 전수, 16은 코너 + 랜덤(100만) | 양×양, 음×음, 양×음, 0, (−최소)² |
+| `tb_mul_csa` | `mul_csa_top` | `o_s + o_c`와 `a×b` 비교 | 같은 자극 | 같음 |
+| `tb_MAC` | `mac_top` (A_W 4/8/16) | 명령을 에지에서 즉시 반영하는 모델. DUT는 `MAC_STAGES` 에지 전 모델 값과 비교 | A 단계 리셋 없는 랜덤, B 단계 비동기 리셋 포함 랜덤, C 단계 최악의 곱 511/512회, D 단계 리셋 직후 복구 | 양/음 곱, 부호 변화, wrap, clr/en 4조합, 리셋, 511 정상, 512 wrap |
 
 ### 7.2 해시(HASH)로 보는 "구조 동등성"
 
@@ -492,14 +492,14 @@ Phase 1 (Verilator, 풀 볼륨)에서 각 테스트가 통과시킨 비교 횟�
 
 | 테스트 | PASS 횟수 | 비고 |
 |---|---|---|
-| `tb_adder_top` | 1,739,080 | W=8 전수 + W=16/24/32/40 carry 체인·랜덤 (W=32는 100만) |
-| `tb_alu_shifter` | 295,152 | XLEN 8 전수 + 16/32 코너·랜덤 |
+| `tb_adder` | 1,739,080 | W=8 전수 + W=16/24/32/40 carry 체인·랜덤 (W=32는 100만) |
+| `tb_shifter` | 295,152 | XLEN 8 전수 + 16/32 코너·랜덤 |
 | `tb_alu_core` | 1,691,688 | XLEN=8 전수(16코드) + 16/32 코너·랜덤 + 검산 예시 8개 |
-| `tb_alu_top` | 60,259 | 지연·valid 갭·비동기 리셋 포함 |
-| `tb_mul_top` (100만) | 1,065,841 | A_W=4, 8 전수 + 16 코너 + 100만 랜덤 |
-| `tb_mul_top` (10만, 구조형 × 덧셈기 5종) | 165,841 | |
-| `tb_mul_csa_top` | 265,841 | `o_s + o_c == a×b` |
-| `tb_mac_top` | 122,054 | 3개 폭 모두, 511/512 wrap 경계 포함 |
+| `tb_ALU` | 60,259 | 지연·valid 갭·비동기 리셋 포함 |
+| `tb_mul` (100만) | 1,065,841 | A_W=4, 8 전수 + 16 코너 + 100만 랜덤 |
+| `tb_mul` (10만, 구조형 × 덧셈기 5종) | 165,841 | |
+| `tb_mul_csa` | 265,841 | `o_s + o_c == a×b` |
+| `tb_MAC` | 122,054 | 3개 폭 모두, 511/512 wrap 경계 포함 |
 
 설계가 바뀐 뒤에 이 숫자가 달라지지 않았다는 점이 중요하다: 구조 변형은 출력을 바꾸지 않고 면적/속도만 바꿔야 하기 때문이다.
 
