@@ -1,6 +1,7 @@
 xrun -64bit \
      +max_err_count+50 \
      +define+function_sim \
+     +incdir+../../1_RTL \
      -access +rwc \
      -profile \
      -profthread \
