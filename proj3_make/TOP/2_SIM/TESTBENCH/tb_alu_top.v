@@ -1,7 +1,7 @@
 `timescale 1ns / 1ps
 `include "alu_defs.vh"
 // -----------------------------------------------------------------------------
-// tb_ALU : self-checking test of alu_top (V9). One testbench for every ARCH combination.
+// tb_alu_top : self-checking test of alu_top (V9). One testbench for every ARCH combination.
 //   1. Reset check    : o_valid = 0 while i_rst_n = 0 even with i_valid = 1 (async, checked mid-cycle).
 //   2. Latency check  : one valid input -> o_valid = 0 after edge 1, o_valid = 1 + correct result after edge 2.
 //   3. Random stream  : valid gaps, back-to-back valid, all 16 op codes, random async reset in mid-cycle.
@@ -208,7 +208,7 @@ initial begin
 end
 endmodule
 
-module tb_ALU;
+module tb_alu_top;
 parameter AARCH = 4;
 parameter SARCH = 1;
 parameter NCYC  = 20000;        // random-stream cycles per width
@@ -236,7 +236,7 @@ endfunction
 
 initial begin
     wait (d8 && d16 && d32);
-    $display("tb_ALU ADDER_ARCH=%0d SHIFTER_ARCH=%0d seeds=1,2,3 : PASS=%0d FAIL=%0d", AARCH, SARCH, pass, fail);
+    $display("tb_alu_top ADDER_ARCH=%0d SHIFTER_ARCH=%0d seeds=1,2,3 : PASS=%0d FAIL=%0d", AARCH, SARCH, pass, fail);
     $display("HASH %h %h %h", h8, h16, h32);
     $display("coverage ops=%h/%h/%h gaps=%0d/%0d/%0d b2b=%0d/%0d/%0d resets=%0d/%0d/%0d flushed=%0d/%0d/%0d latency2=%b/%b/%b",
              os8, os16, os32, g8, g16, g32, b8, b16, b32, r8, r16, r32, x8, x16, x32, l8, l16, l32);

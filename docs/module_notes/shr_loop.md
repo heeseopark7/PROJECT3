@@ -11,4 +11,4 @@
 
 **합성 가설** (수치 단정 아님): 면적은 단 수 × 비트 수만큼의 mux라 barrel보다 클 것이고, 지연은 최대 XLEN−1단을 지나므로 barrel보다 훨씬 길 것이다. 기준선을 barrel로 둔 이유(loop가 항상 critical path가 되어 덧셈기 차이를 가림)를 합성에서 확인할 수 있다. 다만 합성 툴이 이 직렬 구조를 그대로 두는지는 볼 점이다.
 
-**검증**: `tb_shifter.v`를 barrel과 같이 쓴다(XLEN 8/16/32, 3연산 × 전체 shamt). `alu_core`, `alu_top` 테스트에서도 `SHIFTER_ARCH` 0, 1의 출력 해시가 같다.
+**검증**: `tb_alu_shifter.v`를 barrel과 같이 쓴다(XLEN 8/16/32, 3연산 × 전체 shamt). `alu_core`, `alu_top` 테스트에서도 `SHIFTER_ARCH` 0, 1의 출력 해시가 같다.

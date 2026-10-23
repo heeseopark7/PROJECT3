@@ -43,34 +43,34 @@ JN=(); JT=(); JP=(); JF=(); JV=(); JS=()
 add_job() { JN+=("$1"); JT+=("$2"); JP+=("$3"); JF+=("$4"); JV+=("$5"); JS+=("$6"); }
 
 for aa in $ADDER_ARCHS; do
-    add_job "adder_a$aa" TESTBENCH/tb_adder.v tb_adder "$ADD" "ARCH=$aa" "ARCH=$aa NR_BIG=3000 NR_MID=1000 EXH8=0"
+    add_job "adder_a$aa" TESTBENCH/tb_adder_top.v tb_adder_top "$ADD" "ARCH=$aa" "ARCH=$aa NR_BIG=3000 NR_MID=1000 EXH8=0"
 done
 for sa in $SHIFTER_ARCHS; do
-    add_job "shifter_s$sa" TESTBENCH/tb_shifter.v tb_shifter "$SHF" "ARCH=$sa" "ARCH=$sa NR=100 EXH8=0"
+    add_job "shifter_s$sa" TESTBENCH/tb_alu_shifter.v tb_alu_shifter "$SHF" "ARCH=$sa" "ARCH=$sa NR=100 EXH8=0"
 done
 for aa in $ADDER_ARCHS; do for sa in $SHIFTER_ARCHS; do
     add_job "core_a${aa}_s$sa" TESTBENCH/tb_alu_core.v tb_alu_core "$CORE" "AARCH=$aa SARCH=$sa" "AARCH=$aa SARCH=$sa NR=200 EXH8=0"
-    add_job "top_a${aa}_s$sa"  TESTBENCH/tb_ALU.v      tb_ALU      "$TOP"  "AARCH=$aa SARCH=$sa" "AARCH=$aa SARCH=$sa NCYC=1500"
+    add_job "top_a${aa}_s$sa"  TESTBENCH/tb_alu_top.v      tb_alu_top      "$TOP"  "AARCH=$aa SARCH=$sa" "AARCH=$aa SARCH=$sa NCYC=1500"
 done; done
 for m in $MULT_ARCHS; do      # 1,000,000 random pairs at A_W=16 (M2), baseline adder
-    add_job "mulfull_m$m" TESTBENCH/tb_mul.v tb_mul "$MUL" "ARCH=$m AARCH=4 NR16=1000000" "ARCH=$m AARCH=4 NR16=1500 EXH8=0"
+    add_job "mulfull_m$m" TESTBENCH/tb_mul_top.v tb_mul_top "$MUL" "ARCH=$m AARCH=4 NR16=1000000" "ARCH=$m AARCH=4 NR16=1500 EXH8=0"
 done
 for m in $MULT_ARCHS; do      # carry-save multipliers directly: o_s + o_c == a*b
     [ "$m" = "0" ] && continue
-    add_job "mulcsa_m$m" TESTBENCH/tb_mul_csa.v tb_mul_csa "$MUL" "ARCH=$m NR16=200000" "ARCH=$m NR16=1000 EXH8=0"
+    add_job "mulcsa_m$m" TESTBENCH/tb_mul_csa_top.v tb_mul_csa_top "$MUL" "ARCH=$m NR16=200000" "ARCH=$m NR16=1000 EXH8=0"
 done
 for m in $MULT_ARCHS; do for aa in $ADDER_ARCHS; do      # structured multipliers x every final adder
     [ "$m" = "0" ] && continue
-    add_job "mulx_m${m}_a$aa" TESTBENCH/tb_mul.v tb_mul "$MUL" "ARCH=$m AARCH=$aa NR16=100000" "ARCH=$m AARCH=$aa NR16=1000 EXH8=0"
+    add_job "mulx_m${m}_a$aa" TESTBENCH/tb_mul_top.v tb_mul_top "$MUL" "ARCH=$m AARCH=$aa NR16=100000" "ARCH=$m AARCH=$aa NR16=1000 EXH8=0"
 done; done
-add_job "mulx_m0_a4" TESTBENCH/tb_mul.v tb_mul "$MUL" "ARCH=0 AARCH=4 NR16=100000" "ARCH=0 AARCH=4 NR16=1000 EXH8=0"
+add_job "mulx_m0_a4" TESTBENCH/tb_mul_top.v tb_mul_top "$MUL" "ARCH=0 AARCH=4 NR16=100000" "ARCH=0 AARCH=4 NR16=1000 EXH8=0"
 for m in $MULT_ARCHS; do for aa in $ADDER_ARCHS; do      # MAC stage 1: every (multiplier x adder)
-    add_job "mac_m${m}_a${aa}_st1" TESTBENCH/tb_MAC.v tb_MAC "$MAC" "MARCH=$m AARCH=$aa STAGES=1" "MARCH=$m AARCH=$aa STAGES=1 NCYC=1500"
+    add_job "mac_m${m}_a${aa}_st1" TESTBENCH/tb_mac_top.v tb_mac_top "$MAC" "MARCH=$m AARCH=$aa STAGES=1" "MARCH=$m AARCH=$aa STAGES=1 NCYC=1500"
 done; done
 for m in $MULT_ARCHS; do      # MAC stages 2 and 3: baseline adder (stage 3 needs a carry-save multiplier)
-    add_job "mac_m${m}_a4_st2" TESTBENCH/tb_MAC.v tb_MAC "$MAC" "MARCH=$m AARCH=4 STAGES=2" "MARCH=$m AARCH=4 STAGES=2 NCYC=1500"
+    add_job "mac_m${m}_a4_st2" TESTBENCH/tb_mac_top.v tb_mac_top "$MAC" "MARCH=$m AARCH=4 STAGES=2" "MARCH=$m AARCH=4 STAGES=2 NCYC=1500"
     [ "$m" = "0" ] && continue
-    add_job "mac_m${m}_a4_st3" TESTBENCH/tb_MAC.v tb_MAC "$MAC" "MARCH=$m AARCH=4 STAGES=3" "MARCH=$m AARCH=4 STAGES=3 NCYC=1500"
+    add_job "mac_m${m}_a4_st3" TESTBENCH/tb_mac_top.v tb_mac_top "$MAC" "MARCH=$m AARCH=4 STAGES=3" "MARCH=$m AARCH=4 STAGES=3 NCYC=1500"
 done
 
 # ---- runners -------------------------------------------------------------------------------------------------

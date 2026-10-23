@@ -18,4 +18,4 @@
 - 이론상 W=32에서 prefix 셀이 약 57개로 KS(129개)의 절반 이하라 면적과 배선이 작고, 단 수는 9단으로 KS(5단)의 거의 두 배라 더 느릴 것이다.
 - 단 중간에서 일부 비트의 fanout이 커지는 곳이 있어서, 배치 단계에서 fanout 버퍼링을 볼 만하다.
 
-**검증**: `tb_adder.v`와 `alu_core`/`alu_top`/`mac_top`에서 BEH와 출력 해시 동일. lint는 W=8~64에서 경고 0.
+**검증**: `tb_adder_top.v`와 `alu_core`/`alu_top`/`mac_top`에서 BEH와 출력 해시 동일. lint는 W=8~64에서 경고 0.

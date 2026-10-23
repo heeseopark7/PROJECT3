@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 // -----------------------------------------------------------------------------
-// tb_MAC : self-checking test of mac_top (M3 M4 M5 M7). One testbench for every
+// tb_mac_top : self-checking test of mac_top (M3 M4 M5 M7). One testbench for every
 //          (MULT_ARCH, ADDER_ARCH, MAC_STAGES) combination; A_W = 4, 8, 16 run in the same simulation.
 //   Reference model applies each command IMMEDIATELY at the clock edge that samples it
 //   (clr has priority over en; acc wraps mod 2**ACC_W). The DUT o_acc after edge t must equal
@@ -25,7 +25,7 @@ module mac_chk #(
     output reg  [31:0]  o_pass  ,
     output reg  [31:0]  o_fail  ,
     output reg  [31:0]  o_hash  ,
-    output reg  [31:0]  o_cov       // see tb_MAC top for bit meaning
+    output reg  [31:0]  o_cov       // see tb_mac_top top for bit meaning
 );
 
 localparam ACC_W = 2*A_W + 8;
@@ -228,7 +228,7 @@ initial begin
 end
 endmodule
 
-module tb_MAC;
+module tb_mac_top;
 parameter MARCH  = 0;
 parameter AARCH  = 4;
 parameter STAGES = 1;
@@ -250,7 +250,7 @@ localparam [31:0] ALL_COV = 32'h0000_0FFF;
 
 initial begin
     wait (d4 && d8 && d16);
-    $display("tb_MAC MULT_ARCH=%0d ADDER_ARCH=%0d MAC_STAGES=%0d cycles=%0d seeds=1,2,3 : PASS=%0d FAIL=%0d", MARCH, AARCH, STAGES, NCYC, pass, fail);
+    $display("tb_mac_top MULT_ARCH=%0d ADDER_ARCH=%0d MAC_STAGES=%0d cycles=%0d seeds=1,2,3 : PASS=%0d FAIL=%0d", MARCH, AARCH, STAGES, NCYC, pass, fail);
     $display("HASH %h %h %h", h4, h8, h16);
     $display("coverage mask A_W4=%h A_W8=%h A_W16=%h (need %h)", c4, c8, c16, ALL_COV);
     if (fail == 0 && c4 == ALL_COV && c8 == ALL_COV && c16 == ALL_COV)

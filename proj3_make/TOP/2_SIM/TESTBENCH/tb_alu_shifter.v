@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 // -----------------------------------------------------------------------------
-// tb_shifter : self-checking test of alu_shifter. One testbench for every SHIFTER_ARCH.
+// tb_alu_shifter : self-checking test of alu_shifter. One testbench for every SHIFTER_ARCH.
 //   XLEN = 8  : exhaustive data x all shamt x {SLL, SRL, SRA}
 //   XLEN = 16, 32 : corner data + fixed-seed random data x all shamt x 3 ops
 //   Expected value uses the language shift operators (reference model only).
@@ -116,7 +116,7 @@ initial begin
 end
 endmodule
 
-module tb_shifter;
+module tb_alu_shifter;
 parameter ARCH = 1;
 parameter NR   = 2000;          // random data words for XLEN = 16, 32 (each with all shamt x 3 ops)
 parameter EXH8 = 1;             // 1: XLEN = 8 exhaustive; 0: corners + random (small 4-state runs)
@@ -132,7 +132,7 @@ wire [31:0] fail = f8 + f16 + f32;
 
 initial begin
     wait (d8 && d16 && d32);
-    $display("tb_shifter SHIFTER_ARCH=%0d seeds=1,2,3 : PASS=%0d FAIL=%0d", ARCH, pass, fail);
+    $display("tb_alu_shifter SHIFTER_ARCH=%0d seeds=1,2,3 : PASS=%0d FAIL=%0d", ARCH, pass, fail);
     $display("HASH %h %h %h", h8, h16, h32);
     $display("coverage (all_shamt SRAsign1 SRAsign0 SRL SLL) XLEN8=%b XLEN16=%b XLEN32=%b",
              c8[4:0], c16[4:0], c32[4:0]);

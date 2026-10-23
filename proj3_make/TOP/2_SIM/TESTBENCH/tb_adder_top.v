@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 // -----------------------------------------------------------------------------
-// tb_adder : self-checking test of adder_top (V1 V2 V3). One testbench for every ADDER_ARCH.
+// tb_adder_top : self-checking test of adder_top (V1 V2 V3). One testbench for every ADDER_ARCH.
 //   W = 8       : exhaustive (all a, b, cin)                                   -> V1
 //   W = 16, 32  : directed carry-chain cases + corners + fixed-seed random     -> V2, V3
 //                 (W = 32 runs 1,000,000 random vectors per architecture)
@@ -157,7 +157,7 @@ initial begin
 end
 endmodule
 
-module tb_adder;
+module tb_adder_top;
 parameter ARCH   = 4;
 parameter NR_BIG = 1000000;     // random vectors for W = 32 (V3: 1,000,000)
 parameter NR_MID = 200000;      // random vectors for W = 16, 24, 40
@@ -187,7 +187,7 @@ endfunction
 
 initial begin
     wait (d8 && d16 && d24 && d32 && d40);
-    $display("tb_adder ADDER_ARCH=%0d seeds=1,2,3,4,5 : PASS=%0d FAIL=%0d", ARCH, pass, fail);
+    $display("tb_adder_top ADDER_ARCH=%0d seeds=1,2,3,4,5 : PASS=%0d FAIL=%0d", ARCH, pass, fail);
     $display("HASH %h %h %h %h %h", h8, h16, h24, h32, h40);
     $display("coverage (cout0 cout1 cin0 cin1) W8=%b W16=%b W24=%b W32=%b W40=%b", c8, c16, c24, c32, c40);
     $display("carry-run lengths reached: W8=%0d/10 W16=%0d/18 W24=%0d/26 W32=%0d/34 W40=%0d/42",

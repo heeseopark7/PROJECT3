@@ -27,4 +27,4 @@
 **검증** (이 단계에서 내가 실제로 한 것만)
 - Verilator `-Wall` 경고 0 (A_W=4, 8, 16), Yosys `read_verilog`와 `check -assert` 문제 0.
 - 몇 초짜리 스모크 테스트: `o_s + o_c == a×b`를 A_W=4, 8 **전수**로 확인, 불일치 0. A_W=16은 랜덤 2만 개 + (−32768)² 불일치 0.
-- **회귀(`run_regress.sh`)는 돌리지 않았다.** `MULT_ARCH=2`가 `MULT_ARCHS`에 추가되어 있으니 `tb_mul_csa`, `tb_mul`(100만 랜덤), `tb_MAC` 조합이 돌 때 결과를 확인해야 한다.
+- **회귀(`run_regress.sh`)는 돌리지 않았다.** `MULT_ARCH=2`가 `MULT_ARCHS`에 추가되어 있으니 `tb_mul_csa_top`, `tb_mul_top`(100만 랜덤), `tb_mac_top` 조합이 돌 때 결과를 확인해야 한다.
