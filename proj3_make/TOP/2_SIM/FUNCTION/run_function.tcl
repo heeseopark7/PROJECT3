@@ -8,6 +8,8 @@ xrun -64bit \
      -gui \
      +libext+.v \
      ../TESTBENCH/tb_alu_top.v \
+     ../../1_RTL/alu_chip_top.v \
+     ../../1_RTL/alu_chip_top.v \
      ../../1_RTL/alu_top.v \
      ../../1_RTL/alu_core.v \
      ../../1_RTL/adder_top.v \
