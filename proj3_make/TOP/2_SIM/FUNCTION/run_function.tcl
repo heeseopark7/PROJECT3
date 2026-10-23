@@ -7,7 +7,7 @@ xrun -64bit \
      -profthread \
      -gui \
      +libext+.v \
-     ../TESTBENCH/tb_alu_chip_top.v \
+     ../TESTBENCH/tb_mac_chip_top.v \
      ../../1_RTL/alu_chip_top.v \
      ../../1_RTL/alu_chip_top.v \
      ../../1_RTL/alu_top.v \
@@ -21,6 +21,13 @@ xrun -64bit \
      ../../1_RTL/alu_shifter.v \
      ../../1_RTL/shr_loop.v \
      ../../1_RTL/shr_barrel.v \
+     ../../1_RTL/mac_chip_top.v \
+     ../../1_RTL/mac_top.v \
+     ../../1_RTL/mul_top.v \
+     ../../1_RTL/mul_beh.v \
+     ../../1_RTL/mul_csa_top.v \
+     ../../1_RTL/mul_array_csa.v \
+     ../../1_RTL/mul_booth_csa.v \
      /GPDK045/digital/giolib045_v3.5/vlog/pads_FF_s1vg.v \
      /GPDK045/digital/gsclib045_all_v4.4/gsclib045_svt_v4.4/gsclib045/verilog/slow_vdd1v0_basicCells.v \
      -l func_sim.log
