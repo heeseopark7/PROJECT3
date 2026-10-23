@@ -71,7 +71,7 @@ PADDI ipad2(
 
 PADDI ipad3(
     .PAD            (i_valid        ),
-    .Y              (w_valid        )
+    .Y              (w_valid_in     )
 );
 
 PADDI ipad4[XLEN-1:0](
@@ -110,7 +110,7 @@ alu_top #(.XLEN(XLEN), .ADDER_ARCH(ADDER_ARCH), .SHIFTER_ARCH(SHIFTER_ARCH)) u_a
 //       the matching w_ net above drives the pad pin facing the core.
 
 PADDO opad1(
-    .A              (w_valid        ),
+    .A              (w_valid_out    ),
     .PAD            (o_valid        )
 );
 
@@ -125,23 +125,18 @@ PADDO opad3(
 );
 
 PADDO opad4(
-    .A              (w_flag_zero    ),
-    .PAD            (o_flag_zero    )
+    .A              (w_flag_neg     ),
+    .PAD            (o_flag_neg     )
 );
 
 PADDO opad5(
-    .A              (w_flag_neg     ),
-    .Y              (o_flag_neg     )
+    .A              (w_flag_carry   ),
+    .PAD            (o_flag_carry   )
 );
 
 PADDO opad6(
-    .A              (w_flag_carry   ),
-    .Y              (o_flag_carry   )
-);
-
-PADDO opad7(
     .A              (w_flag_ovf     ),
-    .Y              (o_flag_ovf     )
+    .PAD            (o_flag_ovf     )
 );
 
 endmodule
