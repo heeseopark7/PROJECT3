@@ -4,6 +4,7 @@
 
 restoreDesign PlaceOpt.dat
 # Target about skew
+# alu_top has a single clock i_clk (SDC: MAIN_CLOCK, 8ns). Constraint mode is FUNC (see alu_top.mmmc.view).
 set_ccopt_property target_skew 0.01  
 
 create_ccopt_clock_tree_spec

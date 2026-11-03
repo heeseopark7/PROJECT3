@@ -4,11 +4,14 @@
 restoreDesign PowerPlan.dat 
 set_db place_global_cong_effort high
 
+# No pad ring -> let the global placer assign the IO pins (107 signal pins on the block boundary)
+setPlaceMode -place_global_place_io_pins true
+
 # First placement
 place_design
 
 # Check the Placement Density 
-checkPlace cmsdk_mcu.checkPlace
+checkPlace alu_top.checkPlace
 
 # Early GlobalRoute :: analisys of Congestion and Timing after Placement 
 setRouteMode -earlyGlobalMinRouteLayer 1 -earlyGlobalMaxRouteLayer 11 -earlyGlobalHonorMsvRouteConstraint false -earlyGlobalRoutePartitionPinGuide true
