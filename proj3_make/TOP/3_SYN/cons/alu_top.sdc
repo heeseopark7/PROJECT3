@@ -70,11 +70,7 @@ set_output_delay -min -0.01 -clock MAIN_CLOCK [all_outputs]
 #############################
 #set_driving_cell -lib_cell DFFHQX1 -pin Q [remove_from_collection [all_inputs] [get_ports clk]]
 
-#set_driving_cell -lib_cell PADDI -pin Y -library [get_libs $STD_LIB_slow] [remove_from_collection [all_inputs] [get_ports XTAL1]]
-# (pad removed) set_driving_cell -lib_cell PADDI -pin Y -library [get_libs $STD_LIB_slow] [remove_from_collection [all_inputs] [get_ports i_clk]]
 
-#set_load [load_of $STD_LIB/PADDO/A] [get_ports {TDO XTAL2}]
-# (pad removed) set_load [load_of PADDO/A] [all_outputs]
 
 ##############################
 ##### Operating Condition ####
@@ -101,8 +97,6 @@ set_operating_conditions  -max_library [get_libs slow_vdd1v0_basicCells.lib:slow
 #                                 #
 ###################################
 
-# (pad removed) set_dont_touch [get_db insts *ipad*] 
-# (pad removed) set_dont_touch [get_db insts *opad*]
 
 # Below is no use in Genus tool
 #set_isolate_ports [all_outputs]
