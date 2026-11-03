@@ -10,7 +10,7 @@ puts "Hostname : [info hostname]"
 # Preset global variables and attributes
 ######################################################################
 
-set TOP_DESIGN  alu_chip_top
+set TOP_DESIGN  mac_top
 
 set LOG_DIR     "./log"
 set RPT_DIR     "./report"
@@ -19,30 +19,28 @@ set MAPPED_DIR     "./mapped"
 
 #GPDK 045 SVT
 set STD_LIB_PATH "../../../../SoC/GPDK045/digital/gsclib045_all_v4.4/gsclib045/timing"
-set IO_LIB_PATH "../../../../SoC/GPDK045/digital/giolib045_v3.5/timing"
-set LEF_LIB_PATH "../../../../SoC/GPDK045/digital/gsclib045_all_v4.4/gsclib045/lef ../../../../SoC/GPDK045/digital/giolib045_v3.5/lef"
+set LEF_LIB_PATH "../../../../SoC/GPDK045/digital/gsclib045_all_v4.4/gsclib045/lef"
 set RTL_PATH     "../1_RTL"
 set QRC_FILE_PATH "../../../../SoC/GPDK045/digital/gsclib045_all_v4.4/gsclib045_tech/qrc/qx"
 
 #GPDK 045 SVT
-set LIB_LIST {fast_vdd1v0_basicCells.lib slow_vdd1v0_basicCells.lib pads_SS_s1vg.lib}
-#set LIB_LIST {slow_vdd1v0_basicCells.lib slow_vdd1v0_multibitsDFF.lib pads_SS_s1vg.lib}
-set LEF_LIST {gsclib045_tech.lef gsclib045_macro.lef giolib045.lef}
+set LIB_LIST {fast_vdd1v0_basicCells.lib slow_vdd1v0_basicCells.lib}
+#set LIB_LIST {slow_vdd1v0_basicCells.lib slow_vdd1v0_multibitsDFF.lib}
+set LEF_LIST {gsclib045_tech.lef gsclib045_macro.lef}
 set QRC_LIST {gpdk045.tch}
 
-set RTL_SOURCES "../1_RTL/alu_chip_top.v \
-     ../1_RTL/alu_chip_top.v \
-     ../1_RTL/alu_top.v \
-     ../1_RTL/alu_core.v \
+set RTL_SOURCES "../1_RTL/mac_top.v \
+     ../1_RTL/mul_top.v \
+     ../1_RTL/mul_beh.v \
+     ../1_RTL/mul_csa_top.v \
+     ../1_RTL/mul_array_csa.v \
+     ../1_RTL/mul_booth_csa.v \
      ../1_RTL/adder_top.v \
      ../1_RTL/adder_rca.v \
      ../1_RTL/adder_cla.v \
      ../1_RTL/adder_ks.v \
      ../1_RTL/adder_bk.v \
      ../1_RTL/adder_beh.v \
-     ../1_RTL/alu_shifter.v \
-     ../1_RTL/shr_loop.v \
-     ../1_RTL/shr_barrel.v \
 "
 set_db auto_ungroup none
 set_db max_cpus_per_server 2
@@ -52,7 +50,7 @@ set_db syn_generic_effort high; # Default medium
 set_db syn_map_effort high;     # Default medium
 set_db syn_opt_effort high;     # Default medium
 
-set_db init_lib_search_path [concat $STD_LIB_PATH $IO_LIB_PATH $LEF_LIB_PATH $QRC_FILE_PATH]
+set_db init_lib_search_path [concat $STD_LIB_PATH $LEF_LIB_PATH $QRC_FILE_PATH]
 set_db init_hdl_search_path [concat $RTL_PATH]
 
 read_libs ${LIB_LIST}
@@ -89,7 +87,7 @@ check_design -unresolved >> ${RPT_DIR}/00_check_design.rpt
 ####################################################################
 
 #read_sdc  ./cons/cmsdk_mcu.sdc
-source -verbose  ./cons/alu_chip_top.sdc     ; #This command can't write report by using the mark '>'
+source -verbose  ./cons/mac_top.sdc     ; #This command can't write report by using the mark '>'
 source -verbose  ./cons/dont_use_45nm.tcl ; #This command can't write report by using the mark '>'
 puts "The number of exceptions is [llength [vfind "design:$TOP_DESIGN" -exception *]]"
 #set_db "design:$DESIGN" .force_wireload <wireload name> 
