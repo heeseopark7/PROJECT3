@@ -13,8 +13,10 @@ set init_gnd_net VSS
 set init_pwr_net VDD
 set init_lef_file [list \
     $PDK/digital/gsclib045_all_v4.4/gsclib045_tech/lef/gsclib045_tech.lef \
-    $PDK/digital/gsclib045_all_v4.4/gsclib045/lef/gsclib045_macro.lef \
-    $PDK/digital/gsclib045_all_v4.4/gsclib045/lef/gsclib045_multibitsDFF.lef ]
+    $PDK/digital/gsclib045_all_v4.4/gsclib045/lef/gsclib045_macro.lef ]
+## multibitsDFF.lef/.lib are NOT read on purpose: place_opt_design merged flops into multibit cells
+## (site CoreSiteDouble) and failed with IMPSP-365 because the floorplan only has CoreSite rows.
+## 3_SYN also used basicCells only (optimize_merge_flops false).
 set init_verilog ../3_SYN/mapped/alu_top_syn_final.v
 set init_mmmc_file alu_top.mmmc.view
 set init_top_cell alu_top
